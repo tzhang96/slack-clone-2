@@ -1,4 +1,4 @@
-# ChatGenius
+# Slack Clone 2
 
 A real-time chat application focusing on simplicity and reliability.
 
@@ -13,7 +13,7 @@ A real-time chat application focusing on simplicity and reliability.
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd chatgenius
+cd slack-clone-2
 ```
 
 2. Install dependencies:
@@ -43,12 +43,14 @@ npm run dev
 - next
 - react
 - react-dom
+- react-window (for virtualized message lists)
 
 ### Development Dependencies
 - typescript
 - @types/node
 - @types/react
 - @types/react-dom
+- @types/react-window
 - tailwindcss
 - postcss
 - eslint
@@ -57,6 +59,7 @@ npm run dev
 ### Authentication & Database
 - @supabase/auth-helpers-nextjs
 - @supabase/supabase-js
+- @supabase/ssr
 
 ### Form Handling & Validation
 - react-hook-form
@@ -65,6 +68,7 @@ npm run dev
 
 ### UI Utilities
 - tailwind-merge
+- lucide-react
 
 ## Project Structure
 
