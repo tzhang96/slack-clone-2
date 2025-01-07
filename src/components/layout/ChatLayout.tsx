@@ -1,22 +1,25 @@
 'use client'
 
-import { useState } from 'react'
-import { Menu, X } from 'lucide-react'
+import { ReactNode } from 'react'
+import { Header } from './Header'
 
 interface ChatLayoutProps {
-  sidebar: React.ReactNode
-  children: React.ReactNode
+  children: ReactNode
+  sidebar: ReactNode
 }
 
-export function ChatLayout({ sidebar, children }: ChatLayoutProps) {
+export function ChatLayout({ children, sidebar }: ChatLayoutProps) {
   return (
-    <div className="flex h-screen w-full">
-      <div className="w-64 bg-white border-r border-gray-200">
-        {sidebar}
-      </div>
+    <div className="h-screen flex flex-col">
+      <Header />
+      <div className="flex flex-1 pt-14">
+        <aside className="w-64 bg-gray-900 border-r border-gray-700 flex-shrink-0">
+          {sidebar}
+        </aside>
 
-      <div className="flex-1 bg-gray-50">
-        {children}
+        <main className="flex-1 bg-white overflow-hidden">
+          {children}
+        </main>
       </div>
     </div>
   )
