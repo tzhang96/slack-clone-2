@@ -3,6 +3,15 @@
 import { useAuth } from '@/lib/auth'
 import { LogOut } from 'lucide-react'
 
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
 export function Header() {
   const { user, signOut } = useAuth()
 
@@ -14,6 +23,9 @@ export function Header() {
     }
   }
 
+  const displayName = user?.user_metadata?.full_name || user?.email || ''
+  const initials = getInitials(displayName)
+
   return (
     <header className="fixed top-0 left-0 right-0 h-14 bg-gray-900 border-b border-gray-700 flex items-center justify-between px-4 z-50">
       {/* App name */}
@@ -23,8 +35,13 @@ export function Header() {
 
       {/* User info and logout */}
       <div className="flex items-center gap-4">
-        <div className="text-sm text-gray-300">
-          {user?.user_metadata?.full_name || user?.email}
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium uppercase">
+            {displayName.charAt(0)}
+          </div>
+          <div className="text-sm text-gray-300">
+            {displayName}
+          </div>
         </div>
         <button
           onClick={handleLogout}

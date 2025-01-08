@@ -17,7 +17,16 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   const router = useRouter()
   const { getChannelByName, isLoading: isLoadingChannel } = useChannelContext()
   const channel = getChannelByName(params.channelId)
-  const { messages, isLoading: isLoadingMessages, error, sendMessage, fetchMessages } = useMessages(channel?.id)
+  const { 
+    messages, 
+    isLoading: isLoadingMessages, 
+    isLoadingMore,
+    hasMore,
+    error, 
+    sendMessage,
+    fetchMessages,
+    loadMoreMessages 
+  } = useMessages(channel?.id)
 
   // Redirect to general if channel doesn't exist
   useEffect(() => {
@@ -72,7 +81,13 @@ export default function ChannelPage({ params }: ChannelPageProps) {
             </button>
           </div>
         ) : (
-          <MessageList messages={messages} />
+          <MessageList 
+            messages={messages} 
+            isLoading={isLoadingMessages}
+            isLoadingMore={isLoadingMore}
+            hasMore={hasMore}
+            onLoadMore={loadMoreMessages}
+          />
         )}
       </div>
       <div className="p-4 border-t">

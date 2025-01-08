@@ -10,6 +10,11 @@ interface MessageInputProps {
 
 const MAX_LENGTH = 4000
 
+// Helper function to count Unicode characters correctly
+const getUnicodeLength = (str: string) => {
+  return Array.from(str).length
+}
+
 export function MessageInput({ onSend, disabled }: MessageInputProps) {
   const [message, setMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -26,7 +31,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     e.preventDefault()
     const trimmedMessage = message.trim()
     
-    if (trimmedMessage && !disabled) {
+    if (trimmedMessage && !disabled && getUnicodeLength(trimmedMessage) <= MAX_LENGTH) {
       onSend(trimmedMessage)
       setMessage('')
       // Reset height after sending
@@ -45,7 +50,8 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
-    if (newValue.length <= MAX_LENGTH) {
+    const unicodeLength = getUnicodeLength(newValue)
+    if (unicodeLength <= MAX_LENGTH) {
       setMessage(newValue)
       adjustTextareaHeight()
     }
@@ -56,7 +62,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     adjustTextareaHeight()
   }, [message])
 
-  const remainingChars = MAX_LENGTH - message.length
+  const remainingChars = MAX_LENGTH - getUnicodeLength(message)
   const isNearLimit = remainingChars <= 100
 
   return (
