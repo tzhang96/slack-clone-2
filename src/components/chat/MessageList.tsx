@@ -5,6 +5,9 @@ import { VariableSizeList, ListChildComponentProps, areEqual } from 'react-windo
 import { useRef, useEffect, memo, useState, useCallback } from 'react'
 import { Message, MessageRowData } from '@/types/chat'
 import { UserAvatar } from '@/components/shared/UserAvatar'
+import { MessageReactions } from '@/components/shared/MessageReactions'
+import { EmojiPicker } from '@/components/shared/EmojiPicker'
+import { useReactionMutations } from '@/hooks/useReactionMutations'
 
 interface MessageListProps {
   messages: Message[]
@@ -18,6 +21,7 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
   const { messages, currentUserId } = data
   const message = messages[index]
   const messageRef = useRef<HTMLDivElement>(null)
+  const { toggleReaction, isLoading: isMutating } = useReactionMutations()
 
   useEffect(() => {
     if (messageRef.current) {
@@ -29,7 +33,7 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
   return (
     <div style={style}>
       <div className="py-[1px]">
-        <div ref={messageRef} className="px-6 py-0.5 hover:bg-gray-100 transition-colors duration-100">
+        <div ref={messageRef} className="group px-6 py-0.5 hover:bg-gray-100 transition-colors duration-100">
           <div className="flex items-start gap-x-2">
             <UserAvatar 
               userId={message.user.id} 
@@ -53,6 +57,15 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
               </div>
               <div className="text-gray-900 whitespace-pre-wrap break-words">
                 {message.content}
+              </div>
+              <div className="mt-0.5 flex items-center gap-2">
+                <MessageReactions messageId={message.id} />
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <EmojiPicker
+                    onEmojiSelect={(emoji) => toggleReaction(message.id, emoji)}
+                    disabled={isMutating}
+                  />
+                </div>
               </div>
             </div>
           </div>
