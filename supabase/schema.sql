@@ -1,10 +1,10 @@
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Drop existing tables and policies
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS channels;
 DROP TABLE IF EXISTS users;
-
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create users table
 CREATE TABLE users (

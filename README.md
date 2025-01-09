@@ -31,6 +31,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 4. Set up the database:
 - Create a new Supabase project
 - Run the SQL commands from `supabase/schema.sql` in the SQL editor
+- Apply any pending migrations from `supabase/migrations/` (see [MIGRATIONS.md](MIGRATIONS.md) for details)
 
 5. Start the development server:
 ```bash
@@ -73,18 +74,26 @@ npm run dev
 ## Project Structure
 
 ```
-src/
-├── app/                    # Next.js app directory
-│   ├── chat/              # Chat pages
-│   ├── login/             # Login page
-│   └── signup/            # Signup page
-├── components/            # React components
-│   ├── auth/              # Authentication components
-│   ├── chat/              # Chat components
-│   ├── layout/            # Layout components
-│   └── shared/            # Shared UI components
-├── lib/                   # Utility functions and configurations
-└── middleware.ts         # Authentication middleware
+.
+├── src/
+│   ├── app/                    # Next.js app directory
+│   │   ├── chat/              # Chat pages
+│   │   ├── login/             # Login page
+│   │   ├── signup/            # Signup page
+│   │   └── test/              # Development testing page
+│   ├── components/            # React components
+│   │   ├── auth/              # Authentication components
+│   │   ├── chat/              # Chat components
+│   │   ├── layout/            # Layout components
+│   │   └── shared/            # Shared UI components
+│   ├── hooks/                 # Custom React hooks
+│   ├── lib/                   # Utility functions and configurations
+│   ├── types/                 # TypeScript type definitions
+│   └── middleware.ts          # Authentication middleware
+├── supabase/
+│   ├── schema.sql            # Base database schema
+│   └── migrations/           # Database migrations
+└── implementation_steps/     # Implementation documentation
 ```
 
 ## Import Aliases
@@ -106,9 +115,15 @@ import { Button } from '@/components/shared/Button'
 - [x] User authentication (email/password)
 - [x] Protected routes
 - [x] Form validation
-- [ ] Real-time chat
-- [ ] Channel management
-- [ ] Message history
+- [x] Real-time chat
+- [x] Channel management
+- [x] Message history
+- [x] User presence/status
+- [x] Virtualized message list
+- [x] Automatic offline detection
+- [ ] Message reactions
+- [ ] Direct messages
+- [ ] File attachments
 
 ## Development
 
@@ -116,6 +131,11 @@ import { Button } from '@/components/shared/Button'
 2. Make your changes
 3. Run tests (coming soon)
 4. Submit a pull request
+
+## Documentation
+
+- [MIGRATIONS.md](MIGRATIONS.md) - Database migration strategy and documentation
+- [implementation_steps/](implementation_steps/) - Detailed implementation guides for features
 
 ## License
 

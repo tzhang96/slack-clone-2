@@ -20,7 +20,7 @@ const PresenceContext = createContext<PresenceContextType | undefined>(undefined
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const { status, updateStatus: hookUpdateStatus, error } = usePresence()
   const [userStatuses, setUserStatuses] = useState<Record<string, UserStatus>>({})
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
   // Wrap updateStatus to also update userStatuses
   const updateStatus = async (newStatus: UserStatus) => {
@@ -37,19 +37,48 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return
 
     const handleVisibilityChange = () => {
-      updateStatus(document.hidden ? 'away' : 'online')
+      // Only update status if we're not in the initial loading state
+      if (!loading) {
+        updateStatus(document.hidden ? 'away' : 'online')
+      }
     }
 
-    const handleFocus = () => updateStatus('online')
-    const handleBlur = () => updateStatus('away')
+    const handleFocus = () => {
+      if (!loading) {
+        updateStatus('online')
+      }
+    }
+
+    const handleBlur = () => {
+      if (!loading) {
+        updateStatus('away')
+      }
+    }
 
     const handleBeforeUnload = () => {
+      if (!user) return
+      
+      // Use Supabase client directly for more reliable updates
       const body = {
         status: 'offline',
         last_seen: new Date().toISOString()
       }
-      const updateEndpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`
-      navigator.sendBeacon(updateEndpoint, JSON.stringify(body))
+      
+      // Using fetch with keepalive to ensure the request completes
+      fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(body),
+          keepalive: true
+        }
+      ).catch(console.error)
     }
 
     // Add event listeners
@@ -58,8 +87,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('blur', handleBlur)
     window.addEventListener('beforeunload', handleBeforeUnload)
 
-    // Set initial status based on visibility
-    if (document.hidden) {
+    // Set initial status based on visibility only after loading
+    if (!loading && document.hidden) {
       updateStatus('away')
     }
 
@@ -70,7 +99,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('blur', handleBlur)
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [user])
+  }, [user, loading])
 
   // Initialize app data when auth is ready
   useEffect(() => {

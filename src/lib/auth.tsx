@@ -115,6 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    if (user) {
+      // Set status to offline before signing out
+      await supabase
+        .from('users')
+        .update({ 
+          status: 'offline',
+          last_seen: new Date().toISOString()
+        })
+        .eq('id', user.id)
+    }
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
