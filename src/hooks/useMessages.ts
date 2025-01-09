@@ -1,27 +1,60 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
-import { supabase } from '@/lib/supabase'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { Message, SupabaseMessage } from '@/types/chat'
+import { ReactionWithUser } from '@/types/supabase'
 
 // Helper function to transform Supabase message to our Message type
 const transformMessage = (msg: SupabaseMessage): Message => {
-  const userInfo = Array.isArray(msg.users) ? msg.users[0] : msg.users
+  const defaultUser = {
+    id: msg.user_id,
+    username: 'Unknown User',
+    fullName: 'Unknown User',
+    lastSeen: undefined
+  }
+
+  const userInfo = msg.users?.[0]
+  const user = userInfo ? {
+    id: msg.user_id,
+    username: userInfo.username,
+    fullName: userInfo.full_name,
+    lastSeen: userInfo.last_seen
+  } : defaultUser
+
+  const reactions = msg.reactions?.map(reaction => {
+    const reactionUser = reaction.user?.[0]
+    if (!reactionUser) {
+      console.warn(`No user data found for reaction ${reaction.id}`)
+      return {
+        id: reaction.id,
+        emoji: reaction.emoji,
+        user: {
+          id: 'unknown',
+          full_name: 'Unknown User',
+          username: 'unknown'
+        }
+      }
+    }
+    return {
+      id: reaction.id,
+      emoji: reaction.emoji,
+      user: reactionUser
+    }
+  }) || []
+
   return {
     id: msg.id,
     content: msg.content,
     createdAt: msg.created_at,
-    user: {
-      id: msg.user_id,
-      username: userInfo.username,
-      fullName: userInfo.full_name,
-      lastSeen: userInfo.last_seen
-    }
+    channelId: msg.channel_id,
+    user,
+    reactions
   }
 }
 
 // Helper function to count Unicode characters correctly
 const getUnicodeLength = (str: string) => {
-  return Array.from(str).length // Uses Array.from instead of spread operator
+  return Array.from(str).length
 }
 
 export function useMessages(channelId: string | undefined) {
@@ -33,9 +66,10 @@ export function useMessages(channelId: string | undefined) {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const { user } = useAuth()
+  const { supabase } = useSupabase()
 
   const MESSAGES_PER_PAGE = 25
-  const SCROLL_THRESHOLD = 100 // pixels from bottom to consider "at bottom"
+  const SCROLL_THRESHOLD = 100
 
   // Function to check if scroll position is at bottom
   const checkIsAtBottom = useCallback((container: HTMLElement) => {
@@ -81,47 +115,103 @@ export function useMessages(channelId: string | undefined) {
     setError(null)
 
     try {
+      console.log('Fetching messages for channel:', channelId)
+      
+      // First, let's try a simple query without joins
       const { data, error } = await supabase
         .from('messages')
         .select(`
           id,
           content,
           created_at,
-          user_id,
-          users (
-            id,
-            username,
-            full_name,
-            last_seen
-          )
+          channel_id,
+          user_id
         `)
         .eq('channel_id', channelId)
-        .order('created_at', { ascending: false }) // Get newest messages first
+        .order('created_at', { ascending: false })
         .limit(MESSAGES_PER_PAGE)
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching messages:', error)
+        throw error
+      }
 
-      const messagesData = data as SupabaseMessage[]
+      console.log('Fetched messages:', data)
+
+      // If we got the basic data, let's fetch users separately
+      const userIds = Array.from(new Set(data.map(msg => msg.user_id)))
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, username, full_name, last_seen')
+        .in('id', userIds)
+
+      if (userError) {
+        console.error('Error fetching users:', userError)
+        throw userError
+      }
+
+      console.log('Fetched users:', userData)
+
+      // Combine messages with user data
+      const messagesWithUsers = data.map(msg => ({
+        ...msg,
+        users: [userData.find(u => u.id === msg.user_id)].filter(Boolean)
+      }))
+
+      // Now fetch reactions
+      const messageIds = data.map(msg => msg.id)
+      const { data: reactionsData, error: reactionsError } = await supabase
+        .from('reactions')
+        .select(`
+          id,
+          emoji,
+          message_id,
+          user_id,
+          users!reactions_user_id_fkey (
+            id,
+            full_name,
+            username
+          )
+        `)
+        .in('message_id', messageIds)
+
+      if (reactionsError) {
+        console.error('Error fetching reactions:', reactionsError)
+        throw reactionsError
+      }
+
+      console.log('Fetched reactions:', reactionsData)
+
+      // Combine everything
+      const completeMessages = messagesWithUsers.map(msg => ({
+        ...msg,
+        reactions: reactionsData
+          .filter(r => r.message_id === msg.id)
+          .map(r => ({
+            id: r.id,
+            emoji: r.emoji,
+            user: r.users[0]
+          }))
+      }))
+
+      const messagesData = completeMessages as unknown as SupabaseMessage[]
       
-      // If we got less than the limit, there are no more messages
       setHasMore(messagesData.length === MESSAGES_PER_PAGE)
       
-      // Set cursor to oldest message's timestamp
       if (messagesData.length > 0) {
         setCursor(messagesData[messagesData.length - 1].created_at)
       } else {
         setCursor(null)
       }
 
-      // Transform and reverse messages for display (oldest first)
       setMessages(messagesData.map(transformMessage).reverse())
     } catch (error) {
-      console.error('Error fetching messages:', error)
+      console.error('Error in fetchMessages:', error)
       setError(error as Error)
     } finally {
       setIsLoading(false)
     }
-  }, [channelId])
+  }, [channelId, supabase])
 
   // Load initial messages when component mounts or channel changes
   useEffect(() => {
@@ -146,19 +236,24 @@ export function useMessages(channelId: string | undefined) {
           console.log('Message change received:', payload)
 
           if (payload.eventType === 'INSERT') {
-            // Fetch the complete message with user data
             const { data: messageData, error: messageError } = await supabase
               .from('messages')
               .select(`
-                id,
-                content,
-                created_at,
-                user_id,
-                users (
+                *,
+                users!messages_user_id_fkey (
                   id,
                   username,
                   full_name,
                   last_seen
+                ),
+                reactions (
+                  id,
+                  emoji,
+                  user:users!reactions_user_id_fkey (
+                    id,
+                    full_name,
+                    username
+                  )
                 )
               `)
               .eq('id', payload.new.id)
@@ -169,30 +264,44 @@ export function useMessages(channelId: string | undefined) {
               return
             }
 
+            console.log('Fetched new message data:', messageData)
             setMessages(prev => {
-              // Remove any optimistic version of this message (temp-*)
               const withoutOptimistic = prev.filter(m => 
                 !(m.id.startsWith('temp-') && m.content === payload.new.content)
               )
               
-              // Only add if we don't already have the real message ID
               if (withoutOptimistic.some(m => m.id === payload.new.id)) {
                 return withoutOptimistic
               }
               
-              // Add new message to end (maintaining oldest to newest order)
-              return [...withoutOptimistic, transformMessage(messageData as SupabaseMessage)]
+              return [...withoutOptimistic, transformMessage(messageData as unknown as SupabaseMessage)]
             })
           }
         }
       )
       .subscribe()
 
+    const reactionSubscription = supabase
+      .channel(`reactions:${channelId}`)
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reactions'
+        },
+        () => {
+          console.log('Reaction change detected, refetching messages')
+          fetchMessages()
+        }
+      )
+      .subscribe()
+
     return () => {
-      console.log('Unsubscribing from message changes')
+      console.log('Unsubscribing from message and reaction changes')
       messageSubscription.unsubscribe()
+      reactionSubscription.unsubscribe()
     }
-  }, [channelId])
+  }, [channelId, supabase, fetchMessages])
 
   const sendMessage = async (content: string) => {
     console.log('sendMessage called with:', content)
@@ -213,6 +322,7 @@ export function useMessages(channelId: string | undefined) {
       id: `temp-${Date.now()}`,
       content,
       createdAt: new Date().toISOString(),
+      channelId,
       user: {
         id: user.id,
         username: user.email?.split('@')[0] || 'user',
@@ -256,32 +366,39 @@ export function useMessages(channelId: string | undefined) {
           id,
           content,
           created_at,
+          channel_id,
           user_id,
           users (
             id,
             username,
             full_name,
             last_seen
+          ),
+          reactions (
+            id,
+            emoji,
+            user:users (
+              id,
+              full_name,
+              username
+            )
           )
         `)
         .eq('channel_id', channelId)
-        .lt('created_at', cursor) // Get messages older than cursor
+        .lt('created_at', cursor)
         .order('created_at', { ascending: false })
         .limit(MESSAGES_PER_PAGE)
 
       if (error) throw error
 
-      const messagesData = data as SupabaseMessage[]
-      
-      // Update hasMore based on whether we got a full page
+      const messagesData = data as unknown as SupabaseMessage[]
+
       setHasMore(messagesData.length === MESSAGES_PER_PAGE)
-      
-      // Update cursor to oldest message's timestamp
+
       if (messagesData.length > 0) {
         setCursor(messagesData[messagesData.length - 1].created_at)
       }
 
-      // Transform and add messages to start of list (maintaining oldest to newest order)
       setMessages(prev => [...messagesData.map(transformMessage).reverse(), ...prev])
     } catch (error) {
       console.error('Error loading more messages:', error)
@@ -289,20 +406,18 @@ export function useMessages(channelId: string | undefined) {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [channelId, cursor, hasMore, isLoadingMore])
+  }, [channelId, cursor, hasMore, isLoadingMore, supabase])
 
   return {
     messages,
     isLoading,
-    isLoadingMore,
     error,
     hasMore,
+    isLoadingMore,
+    isAtBottom,
     sendMessage,
     loadMoreMessages,
-    fetchMessages,
-    isAtBottom,
-    checkIsAtBottom,
-    scrollToBottom,
-    handleMessagesChange
+    handleMessagesChange,
+    fetchMessages
   }
 } 

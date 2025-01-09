@@ -1,13 +1,17 @@
+import { ReactionWithUser } from './supabase'
+
 export interface Message {
   id: string
   content: string
   createdAt: string
+  channelId: string
   user: {
     id: string
-    username: string
     fullName: string
-    lastSeen: string
+    username: string
+    lastSeen?: string
   }
+  reactions?: ReactionWithUser[]
 }
 
 export interface MessageRowData {
@@ -16,17 +20,25 @@ export interface MessageRowData {
   setSize: (index: number, size: number) => void
 }
 
-interface SupabaseUser {
-  id: string
-  username: string
-  full_name: string
-  last_seen: string
-}
-
 export interface SupabaseMessage {
   id: string
   content: string
   created_at: string
+  channel_id: string
   user_id: string
-  users: SupabaseUser | SupabaseUser[]
+  users: {
+    id: string
+    username: string
+    full_name: string
+    last_seen?: string
+  }[]
+  reactions?: {
+    id: string
+    emoji: string
+    user: {
+      id: string
+      full_name: string
+      username: string
+    }[]
+  }[]
 } 

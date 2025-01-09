@@ -130,21 +130,17 @@ export function MessageList({
     
     sizeMap.current[index] = size
     
-    // Let react-window handle the reset naturally
     if (listRef.current) {
       listRef.current.resetAfterIndex(index)
     }
   }
 
-  // Handle scroll using react-window's onScroll
-  const handleScroll = useCallback(({ scrollOffset, scrollDirection }: { scrollOffset: number, scrollDirection: 'forward' | 'backward' }) => {
-    // Use react-window's scrollOffset to check for load more
+  const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number, scrollDirection: 'forward' | 'backward' }) => {
     if (scrollOffset < 1000 && hasMore && !isLoadingMore) {
       onLoadMore()
     }
   }, [hasMore, isLoadingMore, onLoadMore])
 
-  // Handle message updates using react-window's scrollToItem
   useEffect(() => {
     if (!listRef.current) return
 
@@ -152,11 +148,8 @@ export function MessageList({
 
     if (messageCountDiff > 0) {
       if (isLoadingMoreRef.current) {
-        // Use react-window's scrollToItem with "smart" alignment
-        // This maintains scroll position relative to the new content
         listRef.current.scrollToItem(messageCountDiff, 'smart')
       } else {
-        // For new messages, scroll to bottom
         listRef.current.scrollToItem(messages.length - 1, 'end')
       }
     }

@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { ReactionWithUser } from '@/types/supabase'
+import { useCallback } from 'react'
+import { toast } from 'sonner'
 
 interface MessageReactionsProps {
   messageId: string
@@ -24,12 +26,26 @@ interface GroupedReaction {
 export function MessageReactions({ messageId, className }: MessageReactionsProps) {
   const { session } = useSupabase()
   const { groupedReactions, isLoading } = useReactions(messageId)
-  const { toggleReaction, isLoading: isMutating } = useReactionMutations()
+  const { toggleReaction, isLoading: isMutating, isAuthenticated } = useReactionMutations()
+
+  const handleReactionClick = useCallback(async (emoji: string) => {
+    if (!isAuthenticated) {
+      toast.error('You must be logged in to react to messages')
+      return
+    }
+
+    try {
+      await toggleReaction(messageId, emoji)
+    } catch (error) {
+      console.error('Error toggling reaction:', error)
+      toast.error('Failed to toggle reaction')
+    }
+  }, [isAuthenticated, messageId, toggleReaction])
 
   if (isLoading || groupedReactions.length === 0) return null
 
   return (
-    <div className={cn('flex flex-wrap gap-1.5', className)}>
+    <div className={cn('flex flex-wrap gap-1.5 relative', className)}>
       {groupedReactions.map(({ emoji, users }: GroupedReaction) => {
         const hasReacted = users.some(user => user.id === session?.user?.id)
         
@@ -41,20 +57,41 @@ export function MessageReactions({ messageId, className }: MessageReactionsProps
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    'h-6 rounded-full px-2 text-xs',
-                    hasReacted && 'bg-primary/10 hover:bg-primary/20'
+                    'h-6 rounded-full px-2 text-xs transition-all duration-200',
+                    hasReacted 
+                      ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium dark:bg-blue-900/50 dark:hover:bg-blue-900/70 dark:text-blue-300' 
+                      : 'bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-gray-800/30 dark:hover:bg-gray-800/50 dark:text-gray-300'
                   )}
-                  onClick={() => toggleReaction(messageId, emoji)}
+                  onClick={() => handleReactionClick(emoji)}
                   disabled={isMutating}
                 >
                   <span className="mr-1">{emoji}</span>
-                  <span>{users.length}</span>
+                  <span className={cn(
+                    'font-medium transition-colors duration-200',
+                    hasReacted 
+                      ? 'text-blue-700 dark:text-blue-300'
+                      : 'text-gray-700 dark:text-gray-300'
+                  )}>{users.length}</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-sm">
-                  {users.map(user => user.full_name).join(', ')}
-                </p>
+              <TooltipContent 
+                side="top" 
+                align="center"
+                sideOffset={8}
+                className="shadow-sm"
+              >
+                <div className="text-sm select-none whitespace-nowrap">
+                  {users.map((user, i) => (
+                    <span key={user.id}>
+                      {i > 0 && ', '}
+                      <span className={cn(
+                        user.id === session?.user?.id && 'font-medium text-blue-600 dark:text-blue-400'
+                      )}>
+                        {user.id === session?.user?.id ? 'You' : user.full_name}
+                      </span>
+                    </span>
+                  ))}
+                </div>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
