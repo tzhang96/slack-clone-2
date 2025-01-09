@@ -7,6 +7,12 @@ import { MessageInput } from '@/components/chat/MessageInput'
 import { useMessages } from '@/hooks/useMessages'
 import { useChannelContext } from '@/components/providers/ChannelProvider'
 
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center h-full">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+  </div>
+)
+
 interface ChannelPageProps {
   params: {
     channelId: string
@@ -52,24 +58,19 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   }
 
   if (isLoadingChannel || !channel) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b">
+      <div className="px-6 py-4 border-b flex-shrink-0">
         <h1 className="text-xl font-semibold">#{channel.name}</h1>
         <p className="text-sm text-gray-500">{channel.description}</p>
       </div>
-      <div className="flex-1 overflow-hidden">
+      
+      <div className="flex-1 min-h-0 flex flex-col">
         {isLoadingMessages ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-          </div>
+          <LoadingSpinner />
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full">
             <p className="text-red-500 mb-4">Failed to load messages</p>
@@ -81,17 +82,21 @@ export default function ChannelPage({ params }: ChannelPageProps) {
             </button>
           </div>
         ) : (
-          <MessageList 
-            messages={messages} 
-            isLoading={isLoadingMessages}
-            isLoadingMore={isLoadingMore}
-            hasMore={hasMore}
-            onLoadMore={loadMoreMessages}
-          />
+          <>
+            <div className="flex-1 min-h-0">
+              <MessageList 
+                messages={messages} 
+                isLoading={isLoadingMessages}
+                isLoadingMore={isLoadingMore}
+                hasMore={hasMore}
+                onLoadMore={loadMoreMessages}
+              />
+            </div>
+            <div className="flex-shrink-0 bg-white border-t">
+              <MessageInput onSend={handleSendMessage} disabled={!channel?.id} />
+            </div>
+          </>
         )}
-      </div>
-      <div className="p-4 border-t">
-        <MessageInput onSend={handleSendMessage} disabled={!channel?.id} />
       </div>
     </div>
   )

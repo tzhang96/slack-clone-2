@@ -6,6 +6,7 @@ export interface Message {
     id: string
     username: string
     fullName: string
+    lastSeen: string
   }
 }
 
@@ -19,6 +20,7 @@ interface SupabaseUser {
   id: string
   username: string
   full_name: string
+  last_seen: string
 }
 
 export interface SupabaseMessage {

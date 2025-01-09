@@ -23,7 +23,8 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     const textarea = textareaRef.current
     if (textarea) {
       textarea.style.height = 'auto'
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+      const contentHeight = Math.min(textarea.scrollHeight, 200)
+      textarea.style.height = contentHeight + 'px'
     }
   }
 
@@ -53,14 +54,15 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     const unicodeLength = getUnicodeLength(newValue)
     if (unicodeLength <= MAX_LENGTH) {
       setMessage(newValue)
+      // Adjust height after value change
       adjustTextareaHeight()
     }
   }
 
-  // Adjust height on initial render and when message changes
+  // Adjust height on initial render
   useEffect(() => {
     adjustTextareaHeight()
-  }, [message])
+  }, [])
 
   const remainingChars = MAX_LENGTH - getUnicodeLength(message)
   const isNearLimit = remainingChars <= 100
@@ -77,9 +79,10 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
             placeholder="Type a message..."
             disabled={disabled}
             rows={1}
-            className={`flex-1 resize-none rounded-md border px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px] max-h-[200px] ${
+            className={`flex-1 resize-none rounded-md border px-3 py-1.5 text-base leading-6 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${
               isNearLimit ? 'border-yellow-500' : 'border-gray-300'
-            }`}
+            } scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400`}
+            style={{ maxHeight: '200px', overflowY: message.includes('\n') ? 'auto' : 'hidden' }}
             maxLength={MAX_LENGTH}
             aria-label="Message input"
           />

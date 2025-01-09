@@ -13,7 +13,8 @@ const transformMessage = (msg: SupabaseMessage): Message => {
     user: {
       id: msg.user_id,
       username: userInfo.username,
-      fullName: userInfo.full_name
+      fullName: userInfo.full_name,
+      lastSeen: userInfo.last_seen
     }
   }
 }
@@ -90,7 +91,8 @@ export function useMessages(channelId: string | undefined) {
           users (
             id,
             username,
-            full_name
+            full_name,
+            last_seen
           )
         `)
         .eq('channel_id', channelId)
@@ -155,7 +157,8 @@ export function useMessages(channelId: string | undefined) {
                 users (
                   id,
                   username,
-                  full_name
+                  full_name,
+                  last_seen
                 )
               `)
               .eq('id', payload.new.id)
@@ -257,7 +260,8 @@ export function useMessages(channelId: string | undefined) {
           users (
             id,
             username,
-            full_name
+            full_name,
+            last_seen
           )
         `)
         .eq('channel_id', channelId)

@@ -7,6 +7,8 @@ export type Database = {
           email: string
           username: string
           full_name: string
+          status: 'online' | 'offline' | 'away'
+          last_seen: string
           created_at: string
         }
         Insert: {
@@ -14,6 +16,8 @@ export type Database = {
           email: string
           username: string
           full_name: string
+          status?: 'online' | 'offline' | 'away'
+          last_seen?: string
           created_at?: string
         }
         Update: {
@@ -21,6 +25,8 @@ export type Database = {
           email?: string
           username?: string
           full_name?: string
+          status?: 'online' | 'offline' | 'away'
+          last_seen?: string
           created_at?: string
         }
       }

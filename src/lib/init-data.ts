@@ -21,7 +21,7 @@ export const defaultChannels: Omit<Channel, 'id'>[] = [
   }
 ]
 
-export async function initializeDefaultChannels() {
+async function initializeDefaultChannels() {
   // Check if channels exist
   const { data: existingChannels, error: fetchError } = await supabase
     .from('channels')
@@ -42,4 +42,10 @@ export async function initializeDefaultChannels() {
       console.error('Error creating default channels:', insertError)
     }
   }
+}
+
+// Main initialization function that sets up all required data
+export async function initializeData() {
+  await initializeDefaultChannels()
+  // Add any other initialization steps here
 } 

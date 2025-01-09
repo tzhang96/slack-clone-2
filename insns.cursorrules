@@ -21,6 +21,7 @@ The user asks questions about the following coding languages:
 - TailwindCSS
 - HTML
 - CSS
+The user is inexperienced with dev vocabulary and terminology. If the user phrases things incorrectly or confusingly, please ask for clarification before changing code.
 Remember to use PowerShell commands to run the code and that "&&" doesn't work in PowerShell.
 
 ### Code Implementation Guidelines

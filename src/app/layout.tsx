@@ -1,7 +1,7 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth'
-import { initializeData } from '@/lib/init-data'
+import { PresenceProvider } from '@/components/providers/PresenceProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -16,9 +16,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-blue-500`}>
-        <AuthProvider>{children}</AuthProvider>
+    <html lang="en" className="h-full">
+      <body className={`${inter.className} bg-blue-500 h-full overflow-hidden`}>
+        <AuthProvider>
+          <PresenceProvider>
+            {children}
+          </PresenceProvider>
+        </AuthProvider>
       </body>
     </html>
   )

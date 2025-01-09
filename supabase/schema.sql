@@ -12,6 +12,8 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
     username VARCHAR(20) UNIQUE NOT NULL CHECK (username ~* '^[a-zA-Z0-9_]{3,20}$'),
     full_name VARCHAR(50) NOT NULL CHECK (LENGTH(full_name) BETWEEN 1 AND 50),
+    status text DEFAULT 'offline',
+    last_seen timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -35,6 +37,7 @@ CREATE TABLE messages (
 -- Create indexes
 CREATE INDEX idx_messages_channel_id ON messages(channel_id);
 CREATE INDEX idx_messages_created_at ON messages(created_at);
+CREATE INDEX idx_users_status ON users(status);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -45,6 +48,7 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view all users" ON users;
 DROP POLICY IF EXISTS "Users can insert their own profile" ON users;
 DROP POLICY IF EXISTS "Users can update their own profile" ON users;
+DROP POLICY IF EXISTS "Users can update own status" ON users;
 DROP POLICY IF EXISTS "Users can view all channels" ON channels;
 DROP POLICY IF EXISTS "Users can create channels" ON channels;
 DROP POLICY IF EXISTS "Users can delete channels" ON channels;
@@ -58,8 +62,9 @@ CREATE POLICY "Users can view all users" ON users
 CREATE POLICY "Users can insert their own profile" ON users
     FOR INSERT WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Users can update their own profile" ON users
-    FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can update own record" ON users
+    FOR UPDATE USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
 
 -- Create policies for channels table
 CREATE POLICY "Users can view all channels" ON channels

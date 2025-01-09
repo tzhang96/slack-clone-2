@@ -10,10 +10,10 @@ interface ChatLayoutProps {
 
 export function ChatLayout({ children, sidebar }: ChatLayoutProps) {
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       <Header />
-      <div className="flex flex-1 pt-14">
-        <aside className="w-64 bg-gray-900 border-r border-gray-700 flex-shrink-0">
+      <div className="flex flex-1 pt-14 overflow-hidden">
+        <aside className="w-64 bg-gray-900 border-r border-gray-700 flex-shrink-0 overflow-y-auto">
           {sidebar}
         </aside>
 
