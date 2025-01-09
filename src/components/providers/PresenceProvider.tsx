@@ -154,11 +154,20 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       loadStatuses()
       setupRealtimeSubscription()
-    }
 
-    return () => {
-      if (presenceChannel) {
-        presenceChannel.unsubscribe()
+      // Handle reconnection
+      const connectionChannel = supabase.channel('connection_monitor')
+        .on('system', { event: 'reconnected' }, () => {
+          console.log('Reloading user statuses after reconnection')
+          loadStatuses()
+        })
+        .subscribe()
+
+      return () => {
+        if (presenceChannel) {
+          presenceChannel.unsubscribe()
+        }
+        connectionChannel.unsubscribe()
       }
     }
   }, [user])

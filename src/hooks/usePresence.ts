@@ -73,6 +73,22 @@ export function usePresence() {
     }
   }, [user, loading])
 
+  // Handle Supabase client reconnection
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase.channel('connection_status')
+      .on('system', { event: 'reconnected' }, () => {
+        console.log('Supabase client reconnected, updating status to online')
+        updateStatus('online')
+      })
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [user])
+
   return {
     status,
     updateStatus,
