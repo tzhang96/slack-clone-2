@@ -57,9 +57,36 @@ export interface ReactionInsert extends Omit<ReactionRow, 'id' | 'created_at'> {
 
 export interface ReactionUpdate extends Partial<ReactionInsert> {}
 
-export interface ReactionWithUser {
+export interface ReactionWithUser extends ReactionRow {
+  user: {
+    id: string
+    full_name: string
+    username: string
+  }
+}
+
+export interface FileRow {
   id: string
-  emoji: string
+  message_id: string
+  user_id: string
+  bucket_path: string
+  file_name: string
+  file_size: number
+  content_type: string
+  is_image: boolean
+  image_width: number | null
+  image_height: number | null
+  created_at: string
+}
+
+export interface FileInsert extends Omit<FileRow, 'id' | 'created_at'> {
+  id?: string
+  created_at?: string
+}
+
+export interface FileUpdate extends Partial<FileInsert> {}
+
+export interface FileWithUser extends FileRow {
   user: {
     id: string
     full_name: string
@@ -89,6 +116,11 @@ export interface Database {
         Row: ReactionRow
         Insert: ReactionInsert
         Update: ReactionUpdate
+      }
+      files: {
+        Row: FileRow
+        Insert: FileInsert
+        Update: FileUpdate
       }
     }
   }

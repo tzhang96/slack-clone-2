@@ -1,11 +1,11 @@
 ## High-Level Overview
 
-To add file sharing, you’ll build an upload feature that allows users to select a file, upload it to a secure storage, and send a message containing a link (and/or preview) of that file. The main components involved include:
+To add file sharing, you'll build an upload feature that allows users to select a file, upload it to a secure storage, and send a message containing a link (and/or preview) of that file. The main components involved include:
 
 1. A UI element (e.g., a button or icon) to trigger file selection.  
-2. An API endpoint or existing Supabase functionality to upload the file and retrieve a public URL.  
-3. A way to attach the file’s link/metadata to a message (or a new database table if you prefer).  
-4. A rendering logic in the chat UI to display the file as a downloadable link or embedded preview.
+2. Supabase storage for secure file storage with proper access controls.  
+3. A dedicated `files` table to track file metadata and maintain relationships.  
+4. A rendering logic in the chat UI to display files appropriately.
 
 This approach keeps the user experience consistent with standard messaging apps: files appear in the chat history alongside text messages, and users can preview or download them quickly.
 
@@ -13,63 +13,130 @@ This approach keeps the user experience consistent with standard messaging apps:
 
 ## Detailed Step-by-Step Instructions
 
-1. **Set Up File Storage (Supabase or Other Service)**
-   - In Supabase:  
-     - Create a new Bucket (e.g., "chat-files").  
-     - Configure the bucket’s access policies (public or restricted) so files can be read by users.  
-   - Alternatively, if you prefer a different service (like AWS S3), set that up instead.
+1. **Set Up File Storage in Supabase Dashboard**
+   - Navigate to Storage in the Supabase dashboard
+   - Create a new bucket named "chat-files"
+   - Configure bucket as private (not public)
+   - Add the following storage policies:
+     ```sql
+     -- Allow authenticated users to view files
+     (auth.role() = 'authenticated')  -- for SELECT
 
-2. **Create or Extend Your API Route**
-   - Set up a new route (e.g., /api/files) or extend your existing messages API.  
-   - This route should accept a file upload request, validate the file, then store it in your chosen file storage.  
-   - After successful upload, generate a publicly accessible URL from the storage service.
+     -- Allow authenticated users to upload files
+     (auth.role() = 'authenticated')  -- for INSERT
 
-3. **Enhance the Database (Optional)**
-   - Option A: Use an extra column in the existing messages table to store file-related metadata (like file URL).  
-   - Option B: Create a new files table linking the file record to a message or user.  
-     - Example schema:  
-       - id: uuid (PK)  
-       - message_id: references messages.id  
-       - file_url: string  
-       - file_name: string  
-       - file_size: number  
-       - created_at: timestamp  
+     -- Allow authenticated users to delete their files
+     (auth.role() = 'authenticated')  -- for DELETE
+     ```
+   - Note: No UPDATE policy as files are immutable
 
-4. **Add Front-End UI for File Upload**
-   - Place a small “Attach File” icon or button near your “MessageInput” component.  
-     - Tailwind Example:  
-       - “absolute top-0 right-0 mr-2 mt-2 text-gray-600 hover:text-gray-800”  
-   - When clicked, open a file picker (HTML <input type="file"> or similar).  
-   - Collect the file(s) upon selection.
+2. **Database Schema**
+   - Files table with enhanced metadata:
+     ```sql
+     CREATE TABLE files (
+         id UUID PRIMARY KEY,
+         message_id UUID REFERENCES messages(id) ON DELETE CASCADE,
+         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+         bucket_path TEXT NOT NULL,
+         file_name TEXT NOT NULL,
+         file_size BIGINT NOT NULL,
+         content_type TEXT NOT NULL,
+         is_image BOOLEAN NOT NULL DEFAULT false,
+         image_width INTEGER,
+         image_height INTEGER,
+         created_at TIMESTAMP WITH TIME ZONE,
+         -- Constraints
+         CONSTRAINT valid_file_size CHECK (file_size > 0 AND file_size <= 10485760), -- 10MB max
+         CONSTRAINT valid_file_name CHECK (LENGTH(file_name) <= 255)
+     );
+     ```
+   - Key features:
+     - Automatic cleanup via CASCADE delete
+     - File size limit of 10MB
+     - Special handling for images
+     - Immutable files (no updates allowed)
+     - Automatic storage cleanup via triggers
 
-5. **Implement File Upload Logic**
-   - In your “MessageInput” component (or a new dedicated component):  
-     - Listen for file selection events (onChange).  
-     - Immediately upload the file to /api/files or to Supabase directly.  
-     - Retrieve the resulting file URL once the upload completes.
+3. **Add Front-End UI for File Upload**
+   - Place a small "Attach File" icon near your "MessageInput" component
+   - Implement drag-and-drop support for better UX
+   - Show file type restrictions and size limits
+   - Add upload progress indicator
+   - Example styling:
+     ```tsx
+     <button className="absolute top-0 right-0 mr-2 mt-2 text-gray-600 hover:text-gray-800">
+       <PaperclipIcon className="w-5 h-5" />
+     </button>
+     ```
 
-6. **Attach File URL to the Message**
-   - Once the file upload succeeds, you’ll include the file URL in the message content or store it separately.  
-   - If you’re adding it to the message content:  
-     - Set content to something like: “Check out this file: {PublicFileURL}”.  
-   - If storing it in a new files table, you could still push a normal message referencing that file record.
+4. **Implement File Upload Logic**
+   - In your MessageInput component:
+     - Handle file selection events
+     - Validate file size and type
+     - Upload to Supabase storage
+     - Create file record in database
+     - Show upload progress
+   - Key validations:
+     - Maximum file size: 10MB
+     - Allowed file types
+     - Valid file names
 
-7. **Display Files in the Chat UI**
-   - In “MessageList” or “MessageItem”:  
-     - Check if a message contains a file URL (or has a related file record).  
-     - Render a preview or a link. For example:  
-       - For images, show an <img> with Tailwind classes to keep it responsive.  
-       - For other file types, show a download link or a small file icon.
+5. **Display Files in Chat**
+   - Enhance MessageList/MessageItem to handle files:
+     - For images:
+       - Show thumbnails with lazy loading
+       - Click to view full size
+       - Show dimensions if available
+     - For other files:
+       - Show file icon based on type
+       - Display file name and size
+       - Download button/link
+   - Example preview:
+     ```tsx
+     {isImage ? (
+       <img 
+         src={url} 
+         alt={fileName}
+         className="max-w-sm rounded-lg shadow-md" 
+         loading="lazy"
+       />
+     ) : (
+       <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+         <FileIcon className="w-5 h-5" />
+         <span>{fileName}</span>
+         <span className="text-sm text-gray-500">
+           ({formatFileSize(fileSize)})
+         </span>
+       </div>
+     )}
+     ```
 
-8. **Optional Enhancements**
-   - Add file size validations or file type restrictions in the upload process for security.  
-   - Implement upload progress indicators (e.g., a small progress bar in the message).  
-   - Provide thumbnail previews for common file types (images, PDFs, etc.).  
-   - Store file metadata (name, size, type) in your database to display in the chat UI.
+6. **Error Handling & UX**
+   - Show clear error messages for:
+     - File too large
+     - Invalid file type
+     - Upload failures
+   - Implement retry logic for failed uploads
+   - Show upload progress
+   - Allow cancel during upload
+   - Handle offline state gracefully
 
-9. **Testing and Iteration**
-   - Ensure the entire flow (select file → upload → confirm → display link) works seamlessly on multiple browsers and mobile devices.  
-   - Verify that your security rules (RLS in Supabase or other) protect against unauthorized uploads or downloads.  
-   - Add graceful error handling (e.g., when storage is unreachable or if the file is too large).
+7. **Security Considerations**
+   - Files are immutable once uploaded
+   - Only authenticated users can upload
+   - 10MB file size limit
+   - Automatic cleanup when messages are deleted
+   - Secure file URLs through Supabase
+   - Proper content type validation
 
-By following these steps, you integrate file sharing without disrupting the existing design. Users can now attach and view files just like text messages, enhancing the collaboration features of your chat application.
+8. **Testing**
+   - Test file upload with various:
+     - File types
+     - File sizes
+     - Network conditions
+   - Verify cleanup works properly
+   - Test concurrent uploads
+   - Verify mobile compatibility
+   - Check error handling
+
+By following these steps, you'll implement a secure and user-friendly file sharing system that integrates seamlessly with the chat experience. Files are handled as immutable resources, similar to messages, maintaining chat history integrity while providing a familiar user experience.

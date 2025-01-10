@@ -281,25 +281,9 @@ export function useMessages(channelId: string | undefined) {
       )
       .subscribe()
 
-    const reactionSubscription = supabase
-      .channel(`reactions:${channelId}`)
-      .on('postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'reactions'
-        },
-        () => {
-          console.log('Reaction change detected, refetching messages')
-          fetchMessages()
-        }
-      )
-      .subscribe()
-
     return () => {
-      console.log('Unsubscribing from message and reaction changes')
+      console.log('Unsubscribing from message changes')
       messageSubscription.unsubscribe()
-      reactionSubscription.unsubscribe()
     }
   }, [channelId, supabase, fetchMessages])
 

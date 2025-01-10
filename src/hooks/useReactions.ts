@@ -3,6 +3,14 @@ import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { ReactionWithUser } from '@/types/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
+type DatabaseReaction = Omit<ReactionWithUser, 'user'> & {
+  user: {
+    id: string
+    full_name: string
+    username: string
+  }
+}
+
 export const useReactions = (messageId: string) => {
   const { supabase } = useSupabase()
   const queryClient = useQueryClient()
@@ -14,14 +22,26 @@ export const useReactions = (messageId: string) => {
       const { data, error } = await supabase
         .from('reactions')
         .select(`
-          *,
-          user:users(id, full_name, username)
+          id,
+          emoji,
+          message_id,
+          user_id,
+          user:users!inner (
+            id,
+            full_name,
+            username
+          )
         `)
         .eq('message_id', messageId)
         .order('created_at', { ascending: true })
 
       if (error) throw error
-      return data as ReactionWithUser[]
+
+      // Transform the data to match ReactionWithUser type
+      return (data as unknown as DatabaseReaction[]).map(reaction => ({
+        ...reaction,
+        user: reaction.user
+      }))
     }
   })
 
@@ -38,7 +58,6 @@ export const useReactions = (messageId: string) => {
           filter: `message_id=eq.${messageId}`
         },
         () => {
-          // Refetch reactions when changes occur
           queryClient.invalidateQueries({ queryKey: ['reactions', messageId] })
         }
       )
