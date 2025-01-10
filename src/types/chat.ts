@@ -18,12 +18,13 @@ export interface Message {
   id: string
   content: string
   createdAt: string
-  channelId: string
+  channelId: string | null
+  conversationId?: string
   user: {
     id: string
     fullName: string
     username: string
-    lastSeen?: string
+    lastSeen?: string | null
   }
   reactions?: ReactionWithUser[]
   file?: MessageFile
@@ -69,4 +70,30 @@ export interface SupabaseMessage {
     image_height: number | null
     created_at: string
   }[]
+}
+
+export interface DMConversation {
+  id: string
+  createdAt: string
+  updatedAt: string
+  user1: {
+    id: string
+    username: string
+    fullName: string
+    status?: string
+  }
+  user2: {
+    id: string
+    username: string
+    fullName: string
+    status?: string
+  }
+  user1_id: string
+  user2_id: string
+  otherUser: {
+    id: string
+    username: string
+    fullName: string
+    status?: string
+  }
 } 

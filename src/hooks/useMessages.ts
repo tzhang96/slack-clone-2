@@ -173,6 +173,7 @@ export function useMessages(channelId: string | undefined) {
           )
         `)
         .eq('channel_id', channelId)
+        .is('conversation_id', null)
         .order('created_at', { ascending: false })
         .limit(MESSAGES_PER_PAGE)
 
@@ -281,6 +282,10 @@ export function useMessages(channelId: string | undefined) {
           console.log('Message change received:', payload)
 
           if (payload.eventType === 'INSERT') {
+            if (payload.new.conversation_id !== null) {
+              return;
+            }
+
             const { data: messageData, error: messageError } = await supabase
               .from('messages')
               .select(`
@@ -446,6 +451,7 @@ export function useMessages(channelId: string | undefined) {
           )
         `)
         .eq('channel_id', channelId)
+        .is('conversation_id', null)
         .lt('created_at', cursor)
         .order('created_at', { ascending: false })
         .limit(MESSAGES_PER_PAGE)

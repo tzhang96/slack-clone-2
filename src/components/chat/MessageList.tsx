@@ -13,9 +13,10 @@ import { FilePreview } from '@/components/shared/FilePreview'
 interface MessageListProps {
   messages: Message[]
   isLoading: boolean
-  isLoadingMore: boolean
-  hasMore: boolean
-  onLoadMore: () => void
+  isLoadingMore?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
+  context?: 'channel' | 'dm'
 }
 
 const MessageRow = memo(({ data, index, style }: ListChildComponentProps<MessageRowData>) => {
@@ -50,12 +51,12 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
   return (
     <div style={style}>
       <div className="py-[1px]">
-        <div ref={messageRef} className="group px-6 py-0.5 hover:bg-gray-100 transition-colors duration-100">
+        <div ref={messageRef} className="group px-6 py-0.5 hover:bg-gray-50 transition-colors duration-100">
           <div className="flex items-start gap-x-2">
             <UserAvatar 
               userId={message.user.id} 
               name={message.user.fullName} 
-              lastSeen={message.user.lastSeen}
+              lastSeen={message.user.lastSeen || undefined}
               showStatus={false}
             />
             
@@ -114,9 +115,10 @@ const LoadingBanner = ({ children }: { children: React.ReactNode }) => (
 export function MessageList({ 
   messages, 
   isLoading, 
-  isLoadingMore, 
-  hasMore, 
-  onLoadMore 
+  isLoadingMore = false,
+  hasMore = false,
+  onLoadMore,
+  context = 'channel' 
 }: MessageListProps) {
   const { user } = useAuth()
   const listRef = useRef<VariableSizeList>(null)
@@ -125,6 +127,10 @@ export function MessageList({
   const [containerHeight, setContainerHeight] = useState(0)
   const isLoadingMoreRef = useRef(isLoadingMore)
   const prevMessagesLength = useRef(messages.length)
+
+  useEffect(() => {
+    console.log('MessageList received messages:', messages)
+  }, [messages])
 
   // Update loading ref when prop changes
   useEffect(() => {
@@ -135,7 +141,9 @@ export function MessageList({
   useEffect(() => {
     const updateHeight = () => {
       if (containerRef.current) {
-        setContainerHeight(containerRef.current.offsetHeight)
+        const height = containerRef.current.offsetHeight
+        console.log('Container height updated:', height)
+        setContainerHeight(height)
       }
     }
 
@@ -160,7 +168,8 @@ export function MessageList({
   }
 
   const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number, scrollDirection: 'forward' | 'backward' }) => {
-    if (scrollOffset < 1000 && hasMore && !isLoadingMore) {
+    if (scrollOffset < 1000 && hasMore && !isLoadingMore && onLoadMore) {
+      console.log('Triggering load more from scroll')
       onLoadMore()
     }
   }, [hasMore, isLoadingMore, onLoadMore])
@@ -169,6 +178,11 @@ export function MessageList({
     if (!listRef.current) return
 
     const messageCountDiff = messages.length - prevMessagesLength.current
+    console.log('Message count changed:', { 
+      prev: prevMessagesLength.current, 
+      current: messages.length, 
+      diff: messageCountDiff 
+    })
 
     if (messageCountDiff > 0) {
       if (isLoadingMoreRef.current) {
@@ -183,6 +197,16 @@ export function MessageList({
 
   if (isLoading) {
     return <LoadingSpinner />
+  }
+
+  if (!messages.length) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <span className="text-gray-600">
+          No messages yet
+        </span>
+      </div>
+    )
   }
 
   return (

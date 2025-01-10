@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 
 interface MessageInputProps {
   onSend: (content: string, file?: FileMetadata) => void
+  context?: 'channel' | 'dm'
+  placeholder?: string
   disabled?: boolean
 }
 
@@ -40,7 +42,12 @@ const getUnicodeLength = (str: string) => {
   return Array.from(str).length
 }
 
-export function MessageInput({ onSend, disabled = false }: MessageInputProps) {
+export function MessageInput({ 
+  onSend, 
+  context = 'channel',
+  placeholder = 'Type a message...',
+  disabled = false 
+}: MessageInputProps) {
   const [message, setMessage] = useState('')
   const [fileState, setFileState] = useState<{ file: File | null }>({ file: null })
   const { uploadFile, isUploading, error: uploadError } = useFileUpload()

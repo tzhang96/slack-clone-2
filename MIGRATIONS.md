@@ -169,4 +169,14 @@ $$ LANGUAGE plpgsql;
    - Adds last_heartbeat column to users table
    - **Manual Steps Required:**
      1. Enable `pg_cron` extension in Supabase dashboard
-     2. Create scheduled function `mark-inactive-users` to run every 20 seconds 
+     2. Create scheduled function `mark-inactive-users` to run every 20 seconds
+
+2. `20240000000004_add_dm_conversations.sql`
+   - Adds direct messaging conversation functionality
+   - Creates dm_conversations table with user1_id and user2_id
+   - Ensures unique conversations between pairs of users
+   - Adds RLS policies for secure access
+   - **Key Features:**
+     1. Unique constraint using least/greatest to prevent duplicate conversations
+     2. Index for efficient conversation lookup
+     3. RLS policies ensuring users can only access their own conversations 

@@ -96,6 +96,37 @@ export interface FileWithUser extends FileRow {
   }
 }
 
+export interface DMConversationRow {
+  id: string
+  user1_id: string
+  user2_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DMConversationInsert extends Omit<DMConversationRow, 'id' | 'created_at' | 'updated_at'> {
+  id?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface DMConversationUpdate extends Partial<DMConversationInsert> {}
+
+export interface DMMessageRow {
+  id: string
+  conversation_id: string
+  user_id: string
+  content: string
+  created_at: string
+}
+
+export interface DMMessageInsert extends Omit<DMMessageRow, 'id' | 'created_at'> {
+  id?: string
+  created_at?: string
+}
+
+export interface DMMessageUpdate extends Partial<DMMessageInsert> {}
+
 export interface Database {
   public: {
     Tables: {
@@ -123,6 +154,16 @@ export interface Database {
         Row: FileRow
         Insert: FileInsert
         Update: FileUpdate
+      }
+      dm_conversations: {
+        Row: DMConversationRow
+        Insert: DMConversationInsert
+        Update: DMConversationUpdate
+      }
+      dm_messages: {
+        Row: DMMessageRow
+        Insert: DMMessageInsert
+        Update: DMMessageUpdate
       }
     }
   }

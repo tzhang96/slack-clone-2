@@ -2,7 +2,7 @@
 
 import { usePresenceContext } from '@/components/providers/PresenceProvider'
 import { StatusIndicator } from '@/components/presence/StatusIndicator'
-import { UserStatusTooltip } from '@/components/shared/UserStatusTooltip'
+import { UserTooltip } from '@/components/shared/UserTooltip'
 import { cn } from '@/lib/utils'
 
 interface UserAvatarProps {
@@ -11,6 +11,7 @@ interface UserAvatarProps {
   className?: string
   showStatus?: boolean
   lastSeen?: string
+  size?: 'sm' | 'md'
 }
 
 function getInitials(name: string): string {
@@ -22,7 +23,14 @@ function getInitials(name: string): string {
     .slice(0, 2)
 }
 
-export function UserAvatar({ userId, name, className, showStatus = true, lastSeen }: UserAvatarProps) {
+export function UserAvatar({ 
+  userId, 
+  name, 
+  className, 
+  showStatus = true, 
+  lastSeen,
+  size = 'md'
+}: UserAvatarProps) {
   const { userStatuses } = usePresenceContext()
   const status = userStatuses[userId] || 'offline'
   
@@ -30,14 +38,21 @@ export function UserAvatar({ userId, name, className, showStatus = true, lastSee
     <div className="relative">
       <div
         className={cn(
-          'w-9 h-9 rounded bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium uppercase',
+          'rounded bg-gray-200 flex items-center justify-center text-gray-500 font-medium uppercase',
+          {
+            'w-9 h-9 text-sm': size === 'md',
+            'w-7 h-7 text-xs': size === 'sm'
+          },
           className
         )}
       >
         {getInitials(name)}
       </div>
       {showStatus && (
-        <div className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white rounded-full">
+        <div className={cn(
+          'absolute -bottom-0.5 -right-0.5 ring-2 ring-white dark:ring-gray-900 rounded-full',
+          size === 'sm' && 'scale-75 -bottom-1 -right-1'
+        )}>
           <StatusIndicator status={status} />
         </div>
       )}
@@ -49,8 +64,8 @@ export function UserAvatar({ userId, name, className, showStatus = true, lastSee
   }
 
   return (
-    <UserStatusTooltip userId={userId} name={name} lastSeen={lastSeen}>
+    <UserTooltip userId={userId} name={name} lastSeen={lastSeen}>
       {avatar}
-    </UserStatusTooltip>
+    </UserTooltip>
   )
 } 
