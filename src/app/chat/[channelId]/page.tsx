@@ -19,6 +19,16 @@ interface ChannelPageProps {
   }
 }
 
+interface FileMetadata {
+  bucket_path: string
+  file_name: string
+  file_size: number
+  content_type: string
+  is_image: boolean
+  image_width?: number
+  image_height?: number
+}
+
 export default function ChannelPage({ params }: ChannelPageProps) {
   const router = useRouter()
   const { getChannelByName, isLoading: isLoadingChannel } = useChannelContext()
@@ -48,10 +58,10 @@ export default function ChannelPage({ params }: ChannelPageProps) {
     }
   }, [channel?.id, fetchMessages])
 
-  const handleSendMessage = (content: string) => {
-    console.log('Sending message:', content)
+  const handleSendMessage = (content: string, file?: FileMetadata) => {
+    console.log('Sending message:', content, file)
     if (typeof sendMessage === 'function') {
-      sendMessage(content)
+      sendMessage(content, file)
     } else {
       console.error('sendMessage is not a function:', sendMessage)
     }

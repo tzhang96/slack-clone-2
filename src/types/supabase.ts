@@ -57,7 +57,9 @@ export interface ReactionInsert extends Omit<ReactionRow, 'id' | 'created_at'> {
 
 export interface ReactionUpdate extends Partial<ReactionInsert> {}
 
-export interface ReactionWithUser extends ReactionRow {
+export interface ReactionWithUser {
+  id: string
+  emoji: string
   user: {
     id: string
     full_name: string

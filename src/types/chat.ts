@@ -1,5 +1,19 @@
 import { ReactionWithUser } from './supabase'
 
+export interface MessageFile {
+  id: string
+  message_id: string
+  user_id: string
+  bucket_path: string
+  file_name: string
+  file_size: number
+  content_type: string
+  is_image: boolean
+  image_width?: number
+  image_height?: number
+  created_at: string
+}
+
 export interface Message {
   id: string
   content: string
@@ -12,6 +26,7 @@ export interface Message {
     lastSeen?: string
   }
   reactions?: ReactionWithUser[]
+  file?: MessageFile
 }
 
 export interface MessageRowData {
@@ -40,5 +55,18 @@ export interface SupabaseMessage {
       full_name: string
       username: string
     }[]
+  }[]
+  files?: {
+    id: string
+    message_id: string
+    user_id: string
+    bucket_path: string
+    file_name: string
+    file_size: number
+    content_type: string
+    is_image: boolean
+    image_width: number | null
+    image_height: number | null
+    created_at: string
   }[]
 } 

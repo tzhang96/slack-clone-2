@@ -8,6 +8,7 @@ import { UserAvatar } from '@/components/shared/UserAvatar'
 import { MessageReactions } from '@/components/shared/MessageReactions'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
 import { useReactionMutations } from '@/hooks/useReactionMutations'
+import { FilePreview } from '@/components/shared/FilePreview'
 
 interface MessageListProps {
   messages: Message[]
@@ -22,13 +23,29 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
   const message = messages[index]
   const messageRef = useRef<HTMLDivElement>(null)
   const { toggleReaction, isLoading: isMutating } = useReactionMutations()
+  const [imageLoaded, setImageLoaded] = useState(false)
 
-  useEffect(() => {
+  const updateHeight = useCallback(() => {
     if (messageRef.current) {
       const height = messageRef.current.getBoundingClientRect().height
       data.setSize(index, height + 2)
     }
-  }, [message.content, index, data])
+  }, [data, index])
+
+  // Update height when content or file changes
+  useEffect(() => {
+    updateHeight()
+  }, [message.content, message.file, imageLoaded, updateHeight])
+
+  // Update height when window resizes
+  useEffect(() => {
+    window.addEventListener('resize', updateHeight)
+    return () => window.removeEventListener('resize', updateHeight)
+  }, [updateHeight])
+
+  const handleImageLoad = useCallback(() => {
+    setImageLoaded(true)
+  }, [])
 
   return (
     <div style={style}>
@@ -55,9 +72,16 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
                   })}
                 </span>
               </div>
-              <div className="text-gray-900 whitespace-pre-wrap break-words">
-                {message.content}
-              </div>
+              {message.content && (
+                <div className="text-gray-900 whitespace-pre-wrap break-words">
+                  {message.content}
+                </div>
+              )}
+              {message.file && (
+                <div className="mt-2">
+                  <FilePreview file={message.file} onImageLoad={handleImageLoad} />
+                </div>
+              )}
               <div className="mt-0.5 flex items-center gap-2">
                 <MessageReactions messageId={message.id} />
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">

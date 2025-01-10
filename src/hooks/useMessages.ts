@@ -3,6 +3,17 @@ import { useAuth } from '@/lib/auth'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { Message, SupabaseMessage } from '@/types/chat'
 import { ReactionWithUser } from '@/types/supabase'
+import { useMessageMutation } from '@/hooks/useMessageMutation'
+
+interface FileMetadata {
+  bucket_path: string
+  file_name: string
+  file_size: number
+  content_type: string
+  is_image: boolean
+  image_width?: number
+  image_height?: number
+}
 
 // Helper function to transform Supabase message to our Message type
 const transformMessage = (msg: SupabaseMessage): Message => {
@@ -40,7 +51,10 @@ const transformMessage = (msg: SupabaseMessage): Message => {
       emoji: reaction.emoji,
       user: reactionUser
     }
-  }) || []
+  })
+
+  // Transform file data if present
+  const file = msg.files?.[0]
 
   return {
     id: msg.id,
@@ -48,7 +62,24 @@ const transformMessage = (msg: SupabaseMessage): Message => {
     createdAt: msg.created_at,
     channelId: msg.channel_id,
     user,
-    reactions
+    reactions,
+    ...(file && {
+      file: {
+        id: file.id,
+        message_id: file.message_id,
+        user_id: file.user_id,
+        bucket_path: file.bucket_path,
+        file_name: file.file_name,
+        file_size: file.file_size,
+        content_type: file.content_type,
+        is_image: file.is_image,
+        ...(file.is_image ? {
+          image_width: file.image_width || undefined,
+          image_height: file.image_height || undefined,
+        } : {}),
+        created_at: file.created_at,
+      }
+    })
   }
 }
 
@@ -67,6 +98,7 @@ export function useMessages(channelId: string | undefined) {
   const [isAtBottom, setIsAtBottom] = useState(true)
   const { user } = useAuth()
   const { supabase } = useSupabase()
+  const { sendMessage: sendMessageMutation } = useMessageMutation()
 
   const MESSAGES_PER_PAGE = 25
   const SCROLL_THRESHOLD = 100
@@ -125,7 +157,20 @@ export function useMessages(channelId: string | undefined) {
           content,
           created_at,
           channel_id,
-          user_id
+          user_id,
+          files (
+            id,
+            message_id,
+            user_id,
+            bucket_path,
+            file_name,
+            file_size,
+            content_type,
+            is_image,
+            image_width,
+            image_height,
+            created_at
+          )
         `)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
@@ -254,6 +299,19 @@ export function useMessages(channelId: string | undefined) {
                     full_name,
                     username
                   )
+                ),
+                files (
+                  id,
+                  message_id,
+                  user_id,
+                  bucket_path,
+                  file_name,
+                  file_size,
+                  content_type,
+                  is_image,
+                  image_width,
+                  image_height,
+                  created_at
                 )
               `)
               .eq('id', payload.new.id)
@@ -281,24 +339,58 @@ export function useMessages(channelId: string | undefined) {
       )
       .subscribe()
 
+    const fileSubscription = supabase
+      .channel(`files:${channelId}`)
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'files'
+        },
+        async () => {
+          console.log('File change detected, refetching messages')
+          fetchMessages()
+        }
+      )
+      .subscribe()
+
+    const reactionSubscription = supabase
+      .channel(`reactions:${channelId}`)
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reactions'
+        },
+        () => {
+          console.log('Reaction change detected, refetching messages')
+          fetchMessages()
+        }
+      )
+      .subscribe()
+
     return () => {
-      console.log('Unsubscribing from message changes')
+      console.log('Unsubscribing from message, file, and reaction changes')
       messageSubscription.unsubscribe()
+      fileSubscription.unsubscribe()
+      reactionSubscription.unsubscribe()
     }
   }, [channelId, supabase, fetchMessages])
 
-  const sendMessage = async (content: string) => {
-    console.log('sendMessage called with:', content)
+  const sendMessage = async (content: string, file?: FileMetadata) => {
+    console.log('sendMessage called with:', content, file)
     if (!user || !channelId) return
 
     // Validate message length using Unicode-aware counting
-    const MAX_LENGTH = 4000
-    const contentLength = getUnicodeLength(content)
-    if (contentLength > MAX_LENGTH) {
-      const error = new Error(`Message exceeds maximum length of ${MAX_LENGTH} characters (current length: ${contentLength})`)
-      console.error('Message length error:', error)
-      setError(error)
-      return
+    if (content) {
+      const MAX_LENGTH = 4000
+      const contentLength = getUnicodeLength(content)
+      if (contentLength > MAX_LENGTH) {
+        const error = new Error(`Message exceeds maximum length of ${MAX_LENGTH} characters (current length: ${contentLength})`)
+        console.error('Message length error:', error)
+        setError(error)
+        return
+      }
     }
 
     // Create optimistic message
@@ -311,23 +403,24 @@ export function useMessages(channelId: string | undefined) {
         id: user.id,
         username: user.email?.split('@')[0] || 'user',
         fullName: user.user_metadata?.full_name || 'Anonymous'
-      }
+      },
+      // Add file metadata to optimistic message if present
+      ...(file && {
+        file: {
+          ...file,
+          id: 'temp-file',
+          message_id: `temp-${Date.now()}`,
+          user_id: user.id,
+          created_at: new Date().toISOString()
+        }
+      })
     }
 
     // Add optimistic message to state
     setMessages(prev => [...prev, optimisticMessage])
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          content,
-          channel_id: channelId,
-          user_id: user.id
-        })
-
-      if (error) throw error
-
+      await sendMessageMutation(channelId, content, file)
       // Don't update state here - let the subscription handle it
     } catch (error) {
       console.error('Error sending message:', error)

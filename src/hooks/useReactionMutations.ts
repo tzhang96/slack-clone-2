@@ -10,7 +10,7 @@ export const useReactionMutations = () => {
   const addReaction = useMutation({
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!session?.user?.id) {
-        throw new Error('User must be logged in')
+        return // Let the UI handle the error
       }
 
       const reaction: ReactionInsert = {
@@ -24,14 +24,13 @@ export const useReactionMutations = () => {
         .insert(reaction)
 
       if (error) {
-        // If it's a duplicate, that's fine - the toggle will handle it
-        if (error.code === '23505') return null
+        // If error is duplicate reaction, we can ignore it
+        if (error.code === '23505') return // unique_violation
         throw error
       }
     },
-    onSettled: (_, __, variables) => {
-      // Always invalidate the query after mutation settles
-      queryClient.invalidateQueries({ queryKey: ['reactions', variables.messageId] })
+    onSuccess: (_, { messageId }) => {
+      queryClient.invalidateQueries({ queryKey: ['reactions', messageId] })
     }
   })
 
@@ -39,7 +38,7 @@ export const useReactionMutations = () => {
   const removeReaction = useMutation({
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!session?.user?.id) {
-        throw new Error('User must be logged in')
+        return // Let the UI handle the error
       }
 
       const { error } = await supabase
@@ -53,44 +52,41 @@ export const useReactionMutations = () => {
 
       if (error) throw error
     },
-    onSettled: (_, __, variables) => {
-      // Always invalidate the query after mutation settles
-      queryClient.invalidateQueries({ queryKey: ['reactions', variables.messageId] })
+    onSuccess: (_, { messageId }) => {
+      queryClient.invalidateQueries({ queryKey: ['reactions', messageId] })
     }
   })
 
   // Helper to toggle reaction
   const toggleReaction = async (messageId: string, emoji: string) => {
     if (!session?.user?.id) {
-      throw new Error('User must be logged in')
+      return // Let the UI handle the error
     }
 
-    // Get current reactions to check state
-    const { data: currentReactions } = await supabase
-      .from('reactions')
-      .select('id')
-      .match({
-        message_id: messageId,
-        user_id: session.user.id,
-        emoji
-      })
-
-    const hasReaction = currentReactions && currentReactions.length > 0
-
     try {
-      if (hasReaction) {
+      // Check if reaction exists
+      const { data: existing } = await supabase
+        .from('reactions')
+        .select('id')
+        .match({
+          message_id: messageId,
+          user_id: session.user.id,
+          emoji
+        })
+        .single()
+
+      if (existing) {
         await removeReaction.mutateAsync({ messageId, emoji })
       } else {
         await addReaction.mutateAsync({ messageId, emoji })
       }
     } catch (error) {
-      // If the error is a unique violation, the state might have changed
-      // between our check and the mutation. Retry the toggle.
-      if (error instanceof Error && error.message.includes('23505')) {
-        await toggleReaction(messageId, emoji)
-      } else {
-        throw error
+      // If error is not found for single row query, it means reaction doesn't exist
+      if (error instanceof Error && error.message.includes('No rows returned')) {
+        await addReaction.mutateAsync({ messageId, emoji })
+        return
       }
+      throw error
     }
   }
 
