@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageInput } from '@/components/chat/MessageInput'
-import { useMessages } from '@/hooks/useMessages'
+import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 import { useChannelContext } from '@/components/providers/ChannelProvider'
+import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
+import { Message } from '@/types/chat'
 
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center h-full">
@@ -33,6 +35,17 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   const router = useRouter()
   const { getChannelByName, isLoading: isLoadingChannel } = useChannelContext()
   const channel = getChannelByName(params.channelId)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [activeThread, setActiveThread] = useState<Message | null>(null)
+
+  useEffect(() => {
+    console.log('ChannelPage state:', {
+      channelId: params.channelId,
+      channel,
+      isLoadingChannel
+    })
+  }, [params.channelId, channel, isLoadingChannel])
+
   const { 
     messages, 
     isLoading: isLoadingMessages, 
@@ -40,74 +53,136 @@ export default function ChannelPage({ params }: ChannelPageProps) {
     hasMore,
     error, 
     sendMessage,
-    fetchMessages,
-    loadMoreMessages 
-  } = useMessages(channel?.id)
+    loadMore,
+    handleMessagesChange,
+    isAtBottom,
+    checkIsAtBottom,
+    scrollToBottom
+  } = useUnifiedMessages({
+    type: 'channel',
+    id: channel?.id || ''
+  })
+
+  useEffect(() => {
+    console.log('Message state updated:', {
+      messageCount: messages.length,
+      isLoadingMessages,
+      isLoadingMore,
+      hasMore,
+      error: error?.message
+    })
+  }, [messages, isLoadingMessages, isLoadingMore, hasMore, error])
 
   // Redirect to general if channel doesn't exist
   useEffect(() => {
     if (!isLoadingChannel && !channel) {
+      console.log('Channel not found, redirecting to general')
       router.replace('/chat/general')
+      return
     }
   }, [channel, isLoadingChannel, router])
 
-  // Fetch messages when channel changes
+  // Handle message changes and scrolling
   useEffect(() => {
-    if (channel?.id) {
-      fetchMessages()
-    }
-  }, [channel?.id, fetchMessages])
+    console.log('Handling message changes:', {
+      containerRef: !!containerRef.current,
+      messageCount: messages.length,
+      channelId: channel?.id
+    })
+    
+    handleMessagesChange(containerRef.current, channel?.id ? messages : [])
+  }, [messages, handleMessagesChange, channel?.id])
 
-  const handleSendMessage = (content: string, file?: FileMetadata) => {
-    console.log('Sending message:', content, file)
-    if (typeof sendMessage === 'function') {
-      sendMessage(content, file)
-    } else {
-      console.error('sendMessage is not a function:', sendMessage)
+  const handleSendMessage = async (content: string, file?: FileMetadata) => {
+    if (!channel?.id) {
+      console.log('No channel ID, cannot send message')
+      return
+    }
+
+    console.log('Sending message:', { content, file })
+    try {
+      await sendMessage(content, file)
+      // Scroll to bottom after sending
+      if (containerRef.current) {
+        scrollToBottom(containerRef.current)
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
     }
   }
 
-  if (isLoadingChannel || !channel) {
+  const handleThreadClick = (message: Message) => {
+    console.log('Opening thread for message:', message)
+    setActiveThread(message)
+  }
+
+  const handleCloseThread = () => {
+    console.log('Closing thread')
+    setActiveThread(null)
+  }
+
+  if (isLoadingChannel) {
+    console.log('Showing channel loading spinner')
     return <LoadingSpinner />
   }
 
+  if (!channel) {
+    console.log('No channel, returning null')
+    return null // Let the redirect effect handle this case
+  }
+
+  console.log('Rendering channel page:', {
+    channelName: channel.name,
+    messageCount: messages.length,
+    hasActiveThread: !!activeThread
+  })
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b flex-shrink-0">
-        <h1 className="text-xl font-semibold">#{channel.name}</h1>
-        <p className="text-sm text-gray-500">{channel.description}</p>
-      </div>
-      
-      <div className="flex-1 min-h-0 flex flex-col">
-        {isLoadingMessages ? (
-          <LoadingSpinner />
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full">
-            <p className="text-red-500 mb-4">Failed to load messages</p>
-            <button
-              onClick={() => channel?.id && fetchMessages()}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Try Again
-            </button>
-          </div>
-        ) : (
-          <>
+    <div className="flex h-full">
+      <div className={`flex-1 flex flex-col ${activeThread ? 'lg:mr-[400px]' : ''}`}>
+        <div className="px-6 py-4 border-b flex-shrink-0">
+          <h1 className="text-xl font-semibold">#{channel.name}</h1>
+          <p className="text-sm text-gray-500">{channel.description}</p>
+        </div>
+        
+        <div className="flex-1 min-h-0 flex flex-col relative" ref={containerRef}>
+          <div className="absolute inset-0 flex flex-col">
             <div className="flex-1 min-h-0">
               <MessageList 
                 messages={messages} 
                 isLoading={isLoadingMessages}
                 isLoadingMore={isLoadingMore}
                 hasMore={hasMore}
-                onLoadMore={loadMoreMessages}
+                onLoadMore={loadMore}
+                onThreadClick={handleThreadClick}
               />
             </div>
             <div className="flex-shrink-0 bg-white border-t">
               <MessageInput onSend={handleSendMessage} disabled={!channel?.id} />
             </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
+
+      {/* Thread Sidebar */}
+      {activeThread && (
+        <div className="hidden lg:block fixed top-0 right-0 bottom-0 w-[400px] border-l">
+          <ThreadSidebar
+            parentMessage={activeThread}
+            onClose={handleCloseThread}
+          />
+        </div>
+      )}
+
+      {/* Mobile Thread View */}
+      {activeThread && (
+        <div className="lg:hidden fixed inset-0 bg-white z-50">
+          <ThreadSidebar
+            parentMessage={activeThread}
+            onClose={handleCloseThread}
+          />
+        </div>
+      )}
     </div>
   )
 } 

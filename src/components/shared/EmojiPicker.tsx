@@ -25,7 +25,7 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700"
           disabled={disabled}
         >
           <Smile className="h-5 w-5" />

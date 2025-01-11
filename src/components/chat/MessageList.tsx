@@ -3,12 +3,14 @@
 import { useAuth } from '@/lib/auth'
 import { VariableSizeList, ListChildComponentProps, areEqual } from 'react-window'
 import { useRef, useEffect, memo, useState, useCallback } from 'react'
-import { Message, MessageRowData } from '@/types/chat'
+import { Message } from '@/types/chat'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { MessageReactions } from '@/components/shared/MessageReactions'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
 import { useReactionMutations } from '@/hooks/useReactionMutations'
 import { FilePreview } from '@/components/shared/FilePreview'
+import { ThreadPreview } from '@/components/thread/ThreadPreview'
+import { MessageCircle } from 'lucide-react'
 
 interface MessageListProps {
   messages: Message[]
@@ -16,11 +18,20 @@ interface MessageListProps {
   isLoadingMore?: boolean
   hasMore?: boolean
   onLoadMore?: () => void
-  context?: 'channel' | 'dm'
+  context?: 'channel' | 'dm' | 'thread'
+  onThreadClick?: (message: Message) => void
+}
+
+interface MessageRowData {
+  messages: Message[]
+  currentUserId: string | undefined
+  onThreadClick?: (message: Message) => void
+  setSize: (index: number, size: number) => void
+  context: 'thread' | 'channel' | 'dm'
 }
 
 const MessageRow = memo(({ data, index, style }: ListChildComponentProps<MessageRowData>) => {
-  const { messages, currentUserId } = data
+  const { messages, currentUserId, onThreadClick, context } = data
   const message = messages[index]
   const messageRef = useRef<HTMLDivElement>(null)
   const { toggleReaction, isLoading: isMutating } = useReactionMutations()
@@ -85,11 +96,34 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
               )}
               <div className="mt-0.5 flex items-center gap-2">
                 <MessageReactions messageId={message.id} />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  <EmojiPicker
-                    onEmojiSelect={(emoji) => toggleReaction(message.id, emoji)}
-                    disabled={isMutating}
-                  />
+                <div className="flex items-center gap-2">
+                  {context !== 'thread' && (!message.replyCount || message.replyCount === 0) && (
+                    <button
+                      onClick={() => onThreadClick?.(message)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-gray-500 hover:text-gray-700 text-sm py-1 px-2 rounded hover:bg-gray-100"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Reply in Thread</span>
+                    </button>
+                  )}
+                  {message.replyCount ? (
+                    <ThreadPreview
+                      replyCount={message.replyCount}
+                      participants={message.threadParticipants?.map(p => ({
+                        id: p.id,
+                        username: p.user?.username || 'Unknown',
+                        fullName: p.user?.fullName || 'Unknown User',
+                        lastSeen: p.user?.lastSeen || undefined
+                      })) || []}
+                      onClick={() => onThreadClick?.(message)}
+                    />
+                  ) : null}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <EmojiPicker
+                      onEmojiSelect={(emoji) => toggleReaction(message.id, emoji)}
+                      disabled={isMutating}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -118,7 +152,8 @@ export function MessageList({
   isLoadingMore = false,
   hasMore = false,
   onLoadMore,
-  context = 'channel' 
+  context = 'channel',
+  onThreadClick
 }: MessageListProps) {
   const { user } = useAuth()
   const listRef = useRef<VariableSizeList>(null)
@@ -130,27 +165,61 @@ export function MessageList({
 
   useEffect(() => {
     console.log('MessageList received messages:', messages)
-  }, [messages])
+    console.log('MessageList state:', {
+      isLoading,
+      isLoadingMore,
+      hasMore,
+      containerHeight,
+      messageCount: messages.length
+    })
+  }, [messages, isLoading, isLoadingMore, hasMore, containerHeight])
 
   // Update loading ref when prop changes
   useEffect(() => {
     isLoadingMoreRef.current = isLoadingMore
   }, [isLoadingMore])
 
-  // Update container height when window resizes
+  // Update container height when component mounts and on resize
   useEffect(() => {
     const updateHeight = () => {
       if (containerRef.current) {
-        const height = containerRef.current.offsetHeight
-        console.log('Container height updated:', height)
-        setContainerHeight(height)
+        const height = containerRef.current.getBoundingClientRect().height
+        console.log('Container height calculation:', {
+          offsetHeight: containerRef.current.offsetHeight,
+          clientHeight: containerRef.current.clientHeight,
+          boundingHeight: height
+        })
+        if (height > 0) {
+          setContainerHeight(height)
+        }
       }
     }
 
+    // Initial update
     updateHeight()
+
+    // Update after a short delay to ensure layout is complete
+    const timeoutId = setTimeout(updateHeight, 100)
+
+    // Update on resize
     window.addEventListener('resize', updateHeight)
-    return () => window.removeEventListener('resize', updateHeight)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', updateHeight)
+      clearTimeout(timeoutId)
+    }
   }, [])
+
+  // Force height update when messages change
+  useEffect(() => {
+    if (containerRef.current) {
+      const height = containerRef.current.getBoundingClientRect().height
+      if (height > 0) {
+        setContainerHeight(height)
+      }
+    }
+  }, [messages])
 
   const getSize = (index: number) => {
     return sizeMap.current[index] || 56
@@ -158,48 +227,31 @@ export function MessageList({
 
   const setSize = (index: number, size: number) => {
     const prevSize = sizeMap.current[index]
-    if (prevSize === size) return
-    
     sizeMap.current[index] = size
-    
-    if (listRef.current) {
+    if (prevSize !== size && listRef.current) {
+      console.log(`Updating size for message ${index}: ${prevSize} -> ${size}`)
       listRef.current.resetAfterIndex(index)
     }
   }
 
-  const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number, scrollDirection: 'forward' | 'backward' }) => {
-    if (scrollOffset < 1000 && hasMore && !isLoadingMore && onLoadMore) {
-      console.log('Triggering load more from scroll')
+  const handleScroll = useCallback(({ scrollOffset, scrollDirection }: { scrollOffset: number, scrollDirection: 'forward' | 'backward' }) => {
+    console.log('Scroll event:', { scrollOffset, scrollDirection, hasMore, isLoadingMore: isLoadingMoreRef.current })
+    if (scrollDirection === 'backward' && scrollOffset === 0 && !isLoadingMoreRef.current && hasMore && onLoadMore) {
       onLoadMore()
     }
-  }, [hasMore, isLoadingMore, onLoadMore])
-
-  useEffect(() => {
-    if (!listRef.current) return
-
-    const messageCountDiff = messages.length - prevMessagesLength.current
-    console.log('Message count changed:', { 
-      prev: prevMessagesLength.current, 
-      current: messages.length, 
-      diff: messageCountDiff 
-    })
-
-    if (messageCountDiff > 0) {
-      if (isLoadingMoreRef.current) {
-        listRef.current.scrollToItem(messageCountDiff, 'smart')
-      } else {
-        listRef.current.scrollToItem(messages.length - 1, 'end')
-      }
-    }
-
-    prevMessagesLength.current = messages.length
-  }, [messages.length])
+  }, [hasMore, onLoadMore])
 
   if (isLoading) {
-    return <LoadingSpinner />
+    console.log('MessageList showing loading spinner')
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      </div>
+    )
   }
 
   if (!messages.length) {
+    console.log('MessageList showing empty state')
     return (
       <div className="flex items-center justify-center h-full">
         <span className="text-gray-600">
@@ -209,6 +261,16 @@ export function MessageList({
     )
   }
 
+  // Don't render the list until we have a valid height
+  if (containerHeight === 0) {
+    return (
+      <div ref={containerRef} className="h-full overflow-hidden flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      </div>
+    )
+  }
+
+  console.log('MessageList rendering message list with height:', containerHeight)
   return (
     <div ref={containerRef} className="h-full overflow-hidden">
       {isLoadingMore && (
@@ -225,7 +287,9 @@ export function MessageList({
         itemData={{
           messages,
           currentUserId: user?.id,
-          setSize
+          setSize,
+          onThreadClick,
+          context
         }}
         overscanCount={5}
       >

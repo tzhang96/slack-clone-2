@@ -1,7 +1,6 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Database } from '@/types/supabase'
-import { useCallback } from 'react'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { useAuth } from '@/lib/auth'
+import { useCallback } from 'react'
 
 interface FileMetadata {
   bucket_path: string
@@ -14,7 +13,7 @@ interface FileMetadata {
 }
 
 export function useMessageMutation() {
-  const supabase = createClientComponentClient<Database>()
+  const { supabase } = useSupabase()
   const { user } = useAuth()
 
   const sendMessage = useCallback(async (
@@ -25,6 +24,13 @@ export function useMessageMutation() {
     if (!user) throw new Error('User not authenticated')
 
     try {
+      console.log('Sending message with:', {
+        channelId,
+        content,
+        userId: user.id,
+        fileMetadata
+      })
+
       // First insert the message
       const { data: message, error: messageError } = await supabase
         .from('messages')
@@ -36,11 +42,21 @@ export function useMessageMutation() {
         .select()
         .single()
 
-      if (messageError) throw messageError
+      if (messageError) {
+        console.error('Error creating message:', messageError)
+        throw messageError
+      }
+
+      console.log('Created message:', message)
 
       // If there's file metadata, create the file record
       if (fileMetadata && message) {
-        const { error: fileError } = await supabase
+        console.log('Creating file record:', {
+          messageId: message.id,
+          fileMetadata
+        })
+
+        const { data: fileData, error: fileError } = await supabase
           .from('files')
           .insert({
             message_id: message.id,
@@ -55,8 +71,16 @@ export function useMessageMutation() {
               image_height: fileMetadata.image_height,
             } : {}),
           })
+          .select()
+          .single()
+
+        console.log('File record result:', {
+          data: fileData,
+          error: fileError
+        })
 
         if (fileError) {
+          console.error('Error creating file record:', fileError)
           // If file record creation fails, delete the message
           await supabase
             .from('messages')

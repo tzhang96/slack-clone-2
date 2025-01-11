@@ -1,51 +1,73 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageInput } from '@/components/chat/MessageInput'
-import { useDMMessages } from '@/hooks/useDMMessages'
+import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
+import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
+import { Message } from '@/types/chat'
 
 interface DMChatProps {
   conversationId: string
 }
 
 export function DMChat({ conversationId }: DMChatProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [activeThread, setActiveThread] = useState<Message | null>(null)
+
   const {
     messages,
     isLoading,
     isLoadingMore,
     hasMore,
-    loadMoreMessages,
-    sendMessage
-  } = useDMMessages(conversationId)
-
-  const containerRef = useRef<HTMLDivElement>(null)
+    error,
+    sendMessage,
+    loadMore,
+    handleMessagesChange,
+    isAtBottom,
+    checkIsAtBottom,
+    scrollToBottom
+  } = useUnifiedMessages({
+    type: 'dm',
+    id: conversationId
+  })
 
   useEffect(() => {
     console.log('DMChat messages:', messages)
   }, [messages])
 
-  // Handle scroll to load more messages
+  // Handle message changes and scrolling
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const handleScroll = () => {
-      if (container.scrollTop === 0 && !isLoadingMore && hasMore) {
-        console.log('Loading more messages...')
-        loadMoreMessages()
-      }
+    if (!conversationId) {
+      console.log('No conversation ID, skipping message changes')
+      return
     }
-
-    container.addEventListener('scroll', handleScroll)
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [isLoadingMore, hasMore, loadMoreMessages])
+    console.log('Handling message changes:', {
+      containerRef: !!containerRef.current,
+      messageCount: messages.length
+    })
+    handleMessagesChange(containerRef.current, messages)
+  }, [messages, handleMessagesChange, conversationId])
 
   const handleSendMessage = async (content: string, file?: any) => {
     try {
       console.log('Sending message in DMChat:', { content, file })
       await sendMessage(content, file)
+      // Scroll to bottom after sending
+      if (containerRef.current) {
+        scrollToBottom(containerRef.current)
+      }
     } catch (error) {
       console.error('Error sending message in DMChat:', error)
     }
+  }
+
+  const handleThreadClick = (message: Message) => {
+    console.log('Opening thread for message:', message)
+    setActiveThread(message)
+  }
+
+  const handleCloseThread = () => {
+    console.log('Closing thread')
+    setActiveThread(null)
   }
 
   if (isLoading) {
@@ -57,27 +79,51 @@ export function DMChat({ conversationId }: DMChatProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div 
-        ref={containerRef}
-        className="flex-1 overflow-y-auto"
-      >
-        <MessageList
-          messages={messages}
-          isLoading={isLoading}
-          isLoadingMore={isLoadingMore}
-          hasMore={hasMore}
-          onLoadMore={loadMoreMessages}
-          context="dm"
-        />
+    <div className="flex h-full">
+      <div className={`flex-1 flex flex-col ${activeThread ? 'lg:mr-[400px]' : ''}`}>
+        <div className="flex-1 min-h-0 flex flex-col relative" ref={containerRef}>
+          <div className="absolute inset-0 flex flex-col">
+            <div className="flex-1 min-h-0">
+              <MessageList
+                messages={messages}
+                isLoading={isLoading}
+                isLoadingMore={isLoadingMore}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
+                context="dm"
+                onThreadClick={handleThreadClick}
+              />
+            </div>
+            <div className="flex-shrink-0 bg-white border-t">
+              <MessageInput
+                onSend={handleSendMessage}
+                context="dm"
+                placeholder="Message"
+              />
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="flex-shrink-0 p-4 border-t">
-        <MessageInput
-          onSend={handleSendMessage}
-          context="dm"
-          placeholder="Message"
-        />
-      </div>
+
+      {/* Thread Sidebar */}
+      {activeThread && (
+        <div className="hidden lg:block fixed top-0 right-0 bottom-0 w-[400px] border-l">
+          <ThreadSidebar
+            parentMessage={activeThread}
+            onClose={handleCloseThread}
+          />
+        </div>
+      )}
+
+      {/* Mobile Thread View */}
+      {activeThread && (
+        <div className="lg:hidden fixed inset-0 bg-white z-50">
+          <ThreadSidebar
+            parentMessage={activeThread}
+            onClose={handleCloseThread}
+          />
+        </div>
+      )}
     </div>
   )
 } 

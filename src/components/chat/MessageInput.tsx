@@ -7,12 +7,12 @@ import { cn } from '@/lib/utils'
 
 interface MessageInputProps {
   onSend: (content: string, file?: FileMetadata) => void
-  context?: 'channel' | 'dm'
+  context?: 'channel' | 'dm' | 'thread'
   placeholder?: string
   disabled?: boolean
 }
 
-interface FileMetadata {
+export interface FileMetadata {
   bucket_path: string
   file_name: string
   file_size: number
