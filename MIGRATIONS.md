@@ -171,12 +171,79 @@ $$ LANGUAGE plpgsql;
      1. Enable `pg_cron` extension in Supabase dashboard
      2. Create scheduled function `mark-inactive-users` to run every 20 seconds
 
-2. `20240000000004_add_dm_conversations.sql`
+2. `20240000000002_add_reactions.sql`
+   - Adds emoji reaction functionality to messages
+   - Creates reactions table with emoji and user references
+   - Adds RLS policies for secure access
+   - **Key Features:**
+     1. Unique constraint preventing duplicate reactions
+     2. Cascading deletes when messages are removed
+     3. RLS policies ensuring proper access control
+
+3. `20240000000003_add_files.sql`
+   - Adds file attachment support for messages
+   - Creates files table with metadata and storage references
+   - **Key Features:**
+     1. Support for various file types (images, documents)
+     2. Metadata tracking (size, dimensions for images)
+     3. Secure access through RLS policies
+     4. Automatic cleanup through cascading deletes
+
+4. `20240000000004_add_dm_conversations.sql`
    - Adds direct messaging conversation functionality
    - Creates dm_conversations table with user1_id and user2_id
    - Ensures unique conversations between pairs of users
-   - Adds RLS policies for secure access
    - **Key Features:**
      1. Unique constraint using least/greatest to prevent duplicate conversations
      2. Index for efficient conversation lookup
-     3. RLS policies ensuring users can only access their own conversations 
+     3. RLS policies ensuring users can only access their own conversations
+
+5. `20240000000005_add_dm_messages.sql`
+   - Adds support for direct messages between users
+   - Extends messages table with conversation_id
+   - **Key Features:**
+     1. Foreign key relationship to dm_conversations
+     2. RLS policies for secure message access
+     3. Indexes for efficient message retrieval
+
+6. `20240000000006_add_threads.sql`
+   - Adds threaded conversation support
+   - Extends messages table with thread-related columns
+   - Creates thread_participants table for tracking engagement
+   - **Key Features:**
+     1. Parent-child relationship between messages
+     2. Automatic thread metadata updates (reply count, latest reply)
+     3. Thread participant tracking with last read timestamps
+     4. Triggers for maintaining thread statistics
+     5. RLS policies ensuring proper access control
+
+7. `20240124000000_update_thread_participants_policy.sql` and `20240124000001_add_thread_participants_update_policy.sql`
+   - Enhances thread participant security policies
+   - Adds UPDATE policy for thread participants
+   - **Key Features:**
+     1. Allows users to update their own thread participant entries
+     2. Maintains security for both channel and DM threads
+     3. Ensures proper access control through RLS
+
+### Manual Steps for Thread Support
+
+1. **Verify Trigger Functions**
+   ```sql
+   -- Check if triggers are properly installed
+   SELECT * FROM pg_trigger WHERE tgname LIKE '%thread%';
+   ```
+
+2. **Monitor Thread Statistics**
+   ```sql
+   -- Check thread statistics
+   SELECT id, reply_count, latest_reply_at, is_thread_parent
+   FROM messages
+   WHERE is_thread_parent = true;
+   ```
+
+3. **Verify Thread Participant Access**
+   ```sql
+   -- Test thread participant policies
+   SELECT * FROM thread_participants
+   WHERE user_id = auth.uid();
+   ``` 
