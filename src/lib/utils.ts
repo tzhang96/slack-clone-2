@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { UserJoinResult } from '@/types/chat'
 
 // Combines class names and merges Tailwind classes properly
 export function cn(...inputs: ClassValue[]) {
@@ -33,5 +34,35 @@ export function debounce<T extends (...args: any[]) => any>(
     if (callNow) {
       func(...args)
     }
+  }
+}
+
+export function isValidUserData(user: any): user is UserJoinResult {
+  return (
+    typeof user === 'object' &&
+    user !== null &&
+    typeof user.id === 'string' &&
+    typeof user.username === 'string' &&
+    typeof user.full_name === 'string'
+  )
+}
+
+export function transformUserData(userInfo: UserJoinResult | null | undefined, fallbackId?: string) {
+  if (!userInfo) {
+    return {
+      id: fallbackId || 'unknown',
+      username: 'Unknown',
+      fullName: 'Unknown User',
+      lastSeen: null,
+      status: 'offline'
+    }
+  }
+
+  return {
+    id: userInfo.id,
+    username: userInfo.username,
+    fullName: userInfo.full_name,
+    lastSeen: userInfo.last_seen,
+    status: userInfo.status || 'offline'
   }
 } 

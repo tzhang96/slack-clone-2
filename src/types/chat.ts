@@ -2,16 +2,16 @@ import { ReactionWithUser } from './supabase'
 
 export interface MessageFile {
   id: string
-  message_id: string
-  user_id: string
-  bucket_path: string
-  file_name: string
-  file_size: number
-  content_type: string
-  is_image: boolean
-  image_width?: number
-  image_height?: number
-  created_at: string
+  messageId: string
+  userId: string
+  bucketPath: string
+  fileName: string
+  fileSize: number
+  contentType: string
+  isImage: boolean
+  imageWidth?: number
+  imageHeight?: number
+  createdAt: string
 }
 
 export interface Message {
@@ -33,6 +33,7 @@ export interface Message {
       username: string
       fullName: string
       lastSeen?: string | null
+      status?: string
     }
   }>
   user: {
@@ -40,6 +41,7 @@ export interface Message {
     fullName: string
     username: string
     lastSeen?: string | null
+    status?: string
   }
   reactions?: ReactionWithUser[]
   file?: MessageFile
@@ -51,6 +53,14 @@ export interface MessageRowData {
   setSize: (index: number, size: number) => void
   onThreadClick?: (message: Message) => void
   context: 'thread' | 'channel' | 'dm'
+}
+
+export interface UserJoinResult {
+  id: string
+  username: string
+  full_name: string
+  last_seen?: string | null
+  status?: string
 }
 
 export interface SupabaseMessage {
@@ -68,19 +78,9 @@ export interface SupabaseMessage {
     user_id: string
     last_read_at: string
     created_at: string
-    users: {
-      id: string
-      username: string
-      full_name: string
-      last_seen?: string | null
-    }
+    users: UserJoinResult
   }>
-  users: {
-    id: string
-    username: string
-    full_name: string
-    last_seen?: string | null
-  }
+  users?: Array<UserJoinResult>
   reactions?: Array<{
     id: string
     emoji: string

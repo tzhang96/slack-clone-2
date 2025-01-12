@@ -1,3 +1,5 @@
+import { ThreadParticipantRow } from './thread'
+
 export interface UserRow {
   id: string
   email: string
@@ -131,21 +133,6 @@ export interface DMMessageInsert extends Omit<DMMessageRow, 'id' | 'created_at'>
 
 export interface DMMessageUpdate extends Partial<DMMessageInsert> {}
 
-export interface ThreadParticipantRow {
-  id: string;
-  thread_id: string;
-  user_id: string;
-  last_read_at: string;
-  created_at: string;
-}
-
-export interface ThreadParticipantInsert extends Omit<ThreadParticipantRow, 'id' | 'created_at'> {
-  id?: string;
-  created_at?: string;
-}
-
-export interface ThreadParticipantUpdate extends Partial<ThreadParticipantInsert> {}
-
 export interface Database {
   public: {
     Tables: {
@@ -186,8 +173,8 @@ export interface Database {
       }
       thread_participants: {
         Row: ThreadParticipantRow
-        Insert: ThreadParticipantInsert
-        Update: ThreadParticipantUpdate
+        Insert: Omit<ThreadParticipantRow, 'id' | 'created_at'>
+        Update: Partial<Omit<ThreadParticipantRow, 'id' | 'created_at'>>
       }
     }
   }

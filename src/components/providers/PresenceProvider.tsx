@@ -6,7 +6,7 @@ import type { UserStatus } from '@/types/presence'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { initializeData } from '@/lib/init-data'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { debounce } from '@/lib/utils'
 
 interface PresenceContextType {
@@ -83,6 +83,11 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
 
+    // Set initial status based on visibility
+    if (!loading && document.hidden) {
+      debouncedSetAway()
+    }
+
     // Cleanup
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -106,6 +111,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from('users')
         .select('id, status')
+        .not('status', 'is', null)
 
       if (error) {
         console.error('Error loading user statuses:', error)
@@ -129,21 +135,28 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
             event: 'UPDATE',
             schema: 'public',
             table: 'users',
-            filter: 'status IS NOT NULL'
+            filter: user ? `id=neq.${user.id}` : undefined
           },
           (payload) => {
-            setUserStatuses(current => ({
-              ...current,
-              [payload.new.id]: payload.new.status as UserStatus
-            }))
+            if (payload.eventType === 'UPDATE' && payload.new && 'status' in payload.new) {
+              const { id, status } = payload.new
+              if (typeof id === 'string' && typeof status === 'string') {
+                setUserStatuses(current => ({
+                  ...current,
+                  [id]: status as UserStatus
+                }))
+              }
+            }
           }
         )
         .subscribe()
+
+      return presenceChannel
     }
 
     if (user) {
       loadStatuses()
-      setupRealtimeSubscription()
+      const channel = setupRealtimeSubscription()
 
       // Handle reconnection
       const connectionChannel = supabase.channel('connection_monitor')
@@ -154,8 +167,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         .subscribe()
 
       return () => {
-        if (presenceChannel) {
-          presenceChannel.unsubscribe()
+        if (channel) {
+          channel.unsubscribe()
         }
         connectionChannel.unsubscribe()
       }
