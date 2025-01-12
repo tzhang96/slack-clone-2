@@ -1,12 +1,13 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { usePresence } from '@/hooks/usePresence'
 import type { UserStatus } from '@/types/presence'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { initializeData } from '@/lib/init-data'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { debounce } from '@/lib/utils'
 
 interface PresenceContextType {
   status: UserStatus
@@ -32,74 +33,63 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     }))
   }
 
+  // Create separate debounced functions for online and away status
+  const debouncedSetOnline = useCallback(
+    debounce(() => updateStatus('online'), 1000, true), // Immediate for better responsiveness
+    [user]
+  )
+
+  const debouncedSetAway = useCallback(
+    debounce(() => updateStatus('away'), 3000, false), // Delayed to prevent flickering
+    [user]
+  )
+
+  // Set initial online status when user logs in
+  useEffect(() => {
+    if (!loading && user) {
+      // Use direct updateStatus call for initial status
+      updateStatus('online')
+    }
+  }, [user, loading])
+
   // Handle presence detection
   useEffect(() => {
     if (!user) return
 
     const handleVisibilityChange = () => {
-      // Only update status if we're not in the initial loading state
       if (!loading) {
-        updateStatus(document.hidden ? 'away' : 'online')
+        if (document.hidden) {
+          debouncedSetAway()
+        } else {
+          debouncedSetOnline()
+        }
       }
     }
 
     const handleFocus = () => {
       if (!loading) {
-        updateStatus('online')
+        debouncedSetOnline()
       }
     }
 
     const handleBlur = () => {
       if (!loading) {
-        updateStatus('away')
+        debouncedSetAway()
       }
-    }
-
-    const handleBeforeUnload = () => {
-      if (!user) return
-      
-      // Use Supabase client directly for more reliable updates
-      const body = {
-        status: 'offline',
-        last_seen: new Date().toISOString()
-      }
-      
-      // Using fetch with keepalive to ensure the request completes
-      fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify(body),
-          keepalive: true
-        }
-      ).catch(console.error)
     }
 
     // Add event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
-    window.addEventListener('beforeunload', handleBeforeUnload)
-
-    // Set initial status based on visibility only after loading
-    if (!loading && document.hidden) {
-      updateStatus('away')
-    }
 
     // Cleanup
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [user, loading])
+  }, [user, loading, debouncedSetOnline, debouncedSetAway])
 
   // Initialize app data when auth is ready
   useEffect(() => {
