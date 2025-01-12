@@ -1,149 +1,98 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Channel, defaultChannels } from '@/lib/init-data'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
+import type { Channel } from '@/types/models'
 
 interface UseChannelsReturn {
   channels: Channel[]
   isLoading: boolean
   error: Error | null
+  createChannel: (name: string, description?: string) => Promise<Channel>
   getChannelByName: (name: string) => Channel | undefined
   refreshChannels: () => Promise<void>
-  createChannel: (name: string, description?: string) => Promise<Channel>
   deleteChannel: (channelId: string) => Promise<void>
 }
 
-interface CreateChannelError extends Error {
-  code?: string
+interface CreateChannelError {
+  code: string | null
+  message: string
 }
 
 export function useChannels(): UseChannelsReturn {
-  console.log('useChannels hook initialized')
+  const { supabase } = useSupabase()
   const [channels, setChannels] = useState<Channel[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  // Subscribe to real-time channel changes
+  const fetchChannels = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('channels')
+        .select('*')
+        .order('name')
+
+      if (error) throw error
+
+      setChannels(data.map(channel => ({
+        id: channel.id,
+        name: channel.name,
+        description: channel.description,
+        createdAt: channel.created_at
+      })))
+    } catch (err) {
+      console.error('Error fetching channels:', err)
+      setError(err as Error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Set up real-time subscription
   useEffect(() => {
+    fetchChannels()
+
     const channelSubscription = supabase
-      .channel('channels')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'channels' 
-        }, 
-        (payload) => {
+      .channel('channels_changes')
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'channels'
+        },
+        async (payload) => {
           console.log('Channel change received:', payload)
-          
-          // For inserts, only update if we don't already have this channel
-          // This prevents duplicate channels when we're the one who created it
-          switch (payload.eventType) {
-            case 'INSERT':
-              const newChannel = payload.new as Channel
-              setChannels(prev => {
-                // Check if we already have this channel
-                if (prev.some(c => c.id === newChannel.id)) {
-                  return prev
-                }
-                return [...prev, newChannel]
-              })
-              break
-            // For deletes and updates, always process them
-            case 'DELETE':
-              const deletedChannel = payload.old as Channel
-              setChannels(prev => prev.filter(c => c.id !== deletedChannel.id))
-              break
-            case 'UPDATE':
-              const updatedChannel = payload.new as Channel
-              setChannels(prev => prev.map(c => 
-                c.id === updatedChannel.id ? updatedChannel : c
-              ))
-              break
+
+          if (payload.eventType === 'INSERT') {
+            const newChannel = {
+              id: payload.new.id,
+              name: payload.new.name,
+              description: payload.new.description,
+              createdAt: payload.new.created_at
+            }
+            setChannels(prev => [...prev, newChannel])
+          } else if (payload.eventType === 'DELETE') {
+            setChannels(prev => prev.filter(channel => channel.id !== payload.old.id))
+          } else if (payload.eventType === 'UPDATE') {
+            setChannels(prev => prev.map(channel => 
+              channel.id === payload.new.id
+                ? {
+                    id: payload.new.id,
+                    name: payload.new.name,
+                    description: payload.new.description,
+                    createdAt: payload.new.created_at
+                  }
+                : channel
+            ))
           }
         }
       )
       .subscribe()
 
     return () => {
-      console.log('Unsubscribing from channel changes')
       channelSubscription.unsubscribe()
     }
-  }, [])
-
-  useEffect(() => {
-    console.log('useChannels state:', {
-      channelCount: channels.length,
-      isLoading,
-      hasError: !!error,
-      channels: channels.map(c => c.name)
-    })
-  }, [channels, isLoading, error])
-
-  const initializeDefaultChannels = async () => {
-    const { error: insertError } = await supabase
-      .from('channels')
-      .insert(defaultChannels)
-
-    if (insertError) {
-      console.error('Error creating default channels:', insertError)
-      throw insertError
-    }
-  }
-
-  const refreshChannels = async () => {
-    setIsLoading(true)
-    setError(null)
-    setChannels([])
-
-    try {
-      const { data: existingChannels, error: fetchError } = await supabase
-        .from('channels')
-        .select('id, name, description')
-        .order('name')
-
-      if (fetchError) throw fetchError
-
-      if (!existingChannels || existingChannels.length === 0) {
-        await initializeDefaultChannels()
-        
-        const { data: channels, error: refetchError } = await supabase
-          .from('channels')
-          .select('id, name, description')
-          .order('name')
-
-        if (refetchError) throw refetchError
-        
-        setChannels(channels || [])
-      } else {
-        setChannels(existingChannels)
-      }
-    } catch (err) {
-      setError(err as Error)
-    }
-    
-    setIsLoading(false)
-  }
-
-  const getChannelByName = (name: string) => {
-    return channels.find(channel => channel.name === name)
-  }
+  }, [supabase])
 
   const createChannel = async (name: string, description?: string): Promise<Channel> => {
-    // Validate channel name format
-    if (!/^[a-z0-9-]{3,50}$/.test(name)) {
-      const error = new Error('Channel name must be 3-50 characters long and contain only lowercase letters, numbers, and hyphens') as CreateChannelError
-      error.code = 'invalid_name_format'
-      throw error
-    }
-
-    // Check for duplicate channel name
-    const existingChannel = channels.find(c => c.name === name)
-    if (existingChannel) {
-      const error = new Error('A channel with this name already exists') as CreateChannelError
-      error.code = 'duplicate_name'
-      throw error
-    }
-
     try {
       const { data, error } = await supabase
         .from('channels')
@@ -154,19 +103,16 @@ export function useChannels(): UseChannelsReturn {
         .select()
         .single()
 
-      if (error) {
-        // Handle unique constraint violation
-        if (error.code === '23505') {
-          const duplicateError = new Error('A channel with this name already exists') as CreateChannelError
-          duplicateError.code = 'duplicate_name'
-          throw duplicateError
-        }
-        throw error
+      if (error) throw error
+
+      const newChannel = {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        createdAt: data.created_at
       }
 
-      const newChannel = data as Channel
-      // Add optimistic update
-      setChannels(prev => [...prev, newChannel])
+      // Don't need to update channels here as the subscription will handle it
       return newChannel
     } catch (err) {
       console.error('Error creating channel:', err)
@@ -174,55 +120,37 @@ export function useChannels(): UseChannelsReturn {
     }
   }
 
-  const deleteChannel = async (channelId: string): Promise<void> => {
-    console.log('deleteChannel called with ID:', channelId)
-    // Prevent deletion of the general channel
-    const channel = channels.find(c => c.id === channelId)
-    console.log('Found channel:', channel)
-    if (channel?.name === 'general') {
-      throw new Error('Cannot delete the general channel')
-    }
+  const getChannelByName = (name: string): Channel | undefined => {
+    return channels.find(channel => channel.name === name)
+  }
 
+  const refreshChannels = async (): Promise<void> => {
+    await fetchChannels()
+  }
+
+  const deleteChannel = async (channelId: string): Promise<void> => {
     try {
-      console.log('Attempting to delete channel in Supabase...')
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('channels')
         .delete()
         .eq('id', channelId)
-        .select()
 
-      console.log('Supabase delete response:', { data, error })
+      if (error) throw error
 
-      if (error) {
-        console.error('Supabase deletion error:', error)
-        throw error
-      }
-
-      if (!data || data.length === 0) {
-        console.warn('No rows were deleted from Supabase')
-        throw new Error('Channel not found in database')
-      }
-
-      // Remove optimistic update since real-time will handle it
-      console.log('Channel deleted successfully')
+      // Don't need to update channels here as the subscription will handle it
     } catch (err) {
       console.error('Error deleting channel:', err)
       throw err
     }
   }
 
-  // Load channels on mount
-  useEffect(() => {
-    refreshChannels()
-  }, [])
-
   return {
     channels,
     isLoading,
     error,
+    createChannel,
     getChannelByName,
     refreshChannels,
-    createChannel,
     deleteChannel
   }
 } 

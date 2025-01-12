@@ -2,7 +2,7 @@ import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 import { ThreadHeader } from './ThreadHeader'
 import { MessageList } from '../chat/MessageList'
 import { ThreadMessageInput } from './ThreadMessageInput'
-import { FileMetadata } from '../chat/MessageInput'
+import { FileMetadata } from '@/hooks/useFileUpload'
 import { Message } from '@/types/chat'
 
 interface ThreadSidebarProps {
@@ -27,7 +27,7 @@ export function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarProps) {
     },
   })
 
-  const handleSendMessage = async (content: string, file?: FileMetadata) => {
+  const handleSendMessage = async (content: string, file: FileMetadata | null) => {
     await sendMessage(content, file)
   }
 

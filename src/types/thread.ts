@@ -1,19 +1,21 @@
 import { Message } from './chat';
+import { File } from './models';
 
 export interface ThreadMessage {
   id: string;
   content: string;
   createdAt: string;
-  channelId?: string;
-  conversationId?: string;
+  channelId: string | null;
+  conversationId: string | null;
   user: {
     id: string;
     username: string;
     fullName: string;
-    lastSeen?: string;
+    lastSeen: string | null;
+    status: string | null;
   };
   reactions: ThreadReaction[];
-  file?: ThreadFile;
+  file: File | null;
 }
 
 export interface ThreadReaction {
@@ -24,21 +26,9 @@ export interface ThreadReaction {
     id: string;
     username: string;
     fullName: string;
-    lastSeen?: string;
+    lastSeen: string | null;
+    status: string | null;
   };
-}
-
-export interface ThreadFile {
-  id: string;
-  messageId: string;
-  bucketPath: string;
-  fileName: string;
-  fileSize: number;
-  contentType: string;
-  isImage: boolean;
-  imageWidth?: number;
-  imageHeight?: number;
-  createdAt: string;
 }
 
 export interface ThreadParticipant {
@@ -47,11 +37,13 @@ export interface ThreadParticipant {
   userId: string;
   lastReadAt: string;
   createdAt: string;
-  user?: {
+  user: {
     id: string;
     username: string;
     fullName: string;
-  };
+    lastSeen: string | null;
+    status: string | null;
+  } | null;
 }
 
 export interface Thread {

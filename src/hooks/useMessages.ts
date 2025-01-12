@@ -1,27 +1,22 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
-import { Message, SupabaseMessage } from '@/types/chat'
+import { Message } from '@/types/chat'
 import { ReactionWithUser } from '@/types/supabase'
 import { useMessageMutation } from '@/hooks/useMessageMutation'
-
-interface FileMetadata {
-  bucket_path: string
-  file_name: string
-  file_size: number
-  content_type: string
-  is_image: boolean
-  image_width?: number
-  image_height?: number
-}
+import { DataTransformer } from '@/lib/transformers'
+import { DbJoinedMessage } from '@/types/database'
+import { File } from '@/types/models'
+import { FileMetadata } from '@/hooks/useFileUpload'
 
 // Helper function to transform Supabase message to our Message type
-const transformMessage = (msg: SupabaseMessage): Message => {
+const transformMessage = (msg: DbJoinedMessage): Message => {
   const defaultUser = {
     id: msg.user_id,
     username: 'Unknown User',
     fullName: 'Unknown User',
-    lastSeen: undefined
+    lastSeen: null,
+    status: null
   }
 
   const userInfo = msg.users?.[0]
@@ -29,11 +24,12 @@ const transformMessage = (msg: SupabaseMessage): Message => {
     id: msg.user_id,
     username: userInfo.username,
     fullName: userInfo.full_name,
-    lastSeen: userInfo.last_seen
+    lastSeen: userInfo.last_seen,
+    status: null
   } : defaultUser
 
   const reactions = msg.reactions?.map(reaction => {
-    const reactionUser = reaction.user?.[0]
+    const reactionUser = reaction.users[0]
     if (!reactionUser) {
       console.warn(`No user data found for reaction ${reaction.id}`)
       return {
@@ -41,17 +37,25 @@ const transformMessage = (msg: SupabaseMessage): Message => {
         emoji: reaction.emoji,
         user: {
           id: 'unknown',
+          username: 'unknown',
           full_name: 'Unknown User',
-          username: 'unknown'
+          last_seen: null,
+          status: null
         }
       }
     }
     return {
       id: reaction.id,
       emoji: reaction.emoji,
-      user: reactionUser
+      user: {
+        id: reactionUser.id,
+        username: reactionUser.username,
+        full_name: reactionUser.full_name,
+        last_seen: null,
+        status: null
+      }
     }
-  })
+  }) ?? []
 
   // Transform file data if present
   const file = msg.files?.[0]
@@ -61,25 +65,15 @@ const transformMessage = (msg: SupabaseMessage): Message => {
     content: msg.content,
     createdAt: msg.created_at,
     channelId: msg.channel_id,
+    conversationId: msg.conversation_id,
+    parentMessageId: msg.parent_message_id,
+    replyCount: msg.reply_count ?? 0,
+    latestReplyAt: msg.latest_reply_at,
+    isThreadParent: msg.is_thread_parent ?? false,
+    threadParticipants: msg.thread_participants?.map(p => DataTransformer.toThreadParticipant(p)) ?? [],
     user,
     reactions,
-    ...(file && {
-      file: {
-        id: file.id,
-        message_id: file.message_id,
-        user_id: file.user_id,
-        bucket_path: file.bucket_path,
-        file_name: file.file_name,
-        file_size: file.file_size,
-        content_type: file.content_type,
-        is_image: file.is_image,
-        ...(file.is_image ? {
-          image_width: file.image_width || undefined,
-          image_height: file.image_height || undefined,
-        } : {}),
-        created_at: file.created_at,
-      }
-    })
+    file: file ? DataTransformer.toFile(file) : null
   }
 }
 
@@ -157,7 +151,24 @@ export function useMessages(channelId: string | undefined) {
           content,
           created_at,
           channel_id,
+          conversation_id,
+          parent_message_id,
+          reply_count,
+          latest_reply_at,
+          is_thread_parent,
           user_id,
+          thread_participants (
+            id,
+            user_id,
+            last_read_at,
+            created_at,
+            users (
+              id,
+              username,
+              full_name,
+              last_seen
+            )
+          ),
           files (
             id,
             message_id,
@@ -240,7 +251,7 @@ export function useMessages(channelId: string | undefined) {
           }))
       }))
 
-      const messagesData = completeMessages as unknown as SupabaseMessage[]
+      const messagesData = completeMessages as unknown as DbJoinedMessage[]
       
       setHasMore(messagesData.length === MESSAGES_PER_PAGE)
       
@@ -337,7 +348,7 @@ export function useMessages(channelId: string | undefined) {
                 return withoutOptimistic
               }
               
-              return [...withoutOptimistic, transformMessage(messageData as unknown as SupabaseMessage)]
+              return [...withoutOptimistic, transformMessage(messageData as unknown as DbJoinedMessage)]
             })
           }
         }
@@ -366,7 +377,7 @@ export function useMessages(channelId: string | undefined) {
     }
   }, [channelId, supabase, fetchMessages])
 
-  const sendMessage = async (content: string, file?: FileMetadata) => {
+  const sendMessage = async (content: string, file: FileMetadata | null = null) => {
     console.log('sendMessage called with:', content, file)
     if (!user || !channelId) return
 
@@ -388,28 +399,46 @@ export function useMessages(channelId: string | undefined) {
       content,
       createdAt: new Date().toISOString(),
       channelId,
+      conversationId: null,
+      parentMessageId: null,
+      replyCount: 0,
+      latestReplyAt: null,
+      isThreadParent: false,
       user: {
         id: user.id,
         username: user.email?.split('@')[0] || 'user',
-        fullName: user.user_metadata?.full_name || 'Anonymous'
+        fullName: user.user_metadata?.full_name || 'Anonymous',
+        lastSeen: null,
+        status: null
       },
-      // Add file metadata to optimistic message if present
-      ...(file && {
-        file: {
-          ...file,
-          id: 'temp-file',
-          message_id: `temp-${Date.now()}`,
-          user_id: user.id,
-          created_at: new Date().toISOString()
-        }
-      })
+      reactions: [],
+      threadParticipants: [],
+      file: file ? {
+        id: 'temp-file',
+        messageId: `temp-${Date.now()}`,
+        userId: user.id,
+        bucketPath: file.bucket_path,
+        fileName: file.file_name,
+        fileSize: file.file_size,
+        contentType: file.content_type,
+        isImage: file.is_image,
+        imageWidth: file.image_width,
+        imageHeight: file.image_height,
+        createdAt: new Date().toISOString()
+      } as File : null
     }
 
     // Add optimistic message to state
     setMessages(prev => [...prev, optimisticMessage])
 
     try {
-      await sendMessageMutation(channelId, content, file)
+      await sendMessageMutation({
+        content,
+        channelId,
+        conversationId: null,
+        parentMessageId: null,
+        fileMetadata: file
+      })
       // Don't update state here - let the subscription handle it
     } catch (error) {
       console.error('Error sending message:', error)
@@ -458,7 +487,7 @@ export function useMessages(channelId: string | undefined) {
 
       if (error) throw error
 
-      const messagesData = data as unknown as SupabaseMessage[]
+      const messagesData = data as unknown as DbJoinedMessage[]
 
       setHasMore(messagesData.length === MESSAGES_PER_PAGE)
 

@@ -2,24 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Send, Paperclip, X } from 'lucide-react'
-import { useFileUpload } from '@/hooks/useFileUpload'
+import { useFileUpload, FileMetadata } from '@/hooks/useFileUpload'
 import { cn } from '@/lib/utils'
 
 interface MessageInputProps {
-  onSend: (content: string, file?: FileMetadata) => void
+  onSend: (content: string, file: FileMetadata | null) => void | Promise<void>
   context?: 'channel' | 'dm' | 'thread'
   placeholder?: string
   disabled?: boolean
-}
-
-export interface FileMetadata {
-  bucket_path: string
-  file_name: string
-  file_size: number
-  content_type: string
-  is_image: boolean
-  image_width?: number
-  image_height?: number
 }
 
 const MAX_LENGTH = 4000
@@ -82,7 +72,7 @@ export function MessageInput({
     }
 
     try {
-      let fileMetadata = undefined
+      let fileMetadata: FileMetadata | null = null
       
       // Upload file if present
       if (fileState.file) {

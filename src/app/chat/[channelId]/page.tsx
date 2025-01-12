@@ -8,6 +8,7 @@ import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 import { useChannelContext } from '@/components/providers/ChannelProvider'
 import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
 import { Message } from '@/types/chat'
+import { FileMetadata } from '@/hooks/useFileUpload'
 
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center h-full">
@@ -19,16 +20,6 @@ interface ChannelPageProps {
   params: {
     channelId: string
   }
-}
-
-interface FileMetadata {
-  bucket_path: string
-  file_name: string
-  file_size: number
-  content_type: string
-  is_image: boolean
-  image_width?: number
-  image_height?: number
 }
 
 export default function ChannelPage({ params }: ChannelPageProps) {
@@ -93,18 +84,13 @@ export default function ChannelPage({ params }: ChannelPageProps) {
     handleMessagesChange(containerRef.current, channel?.id ? messages : [])
   }, [messages, handleMessagesChange, channel?.id])
 
-  const handleSendMessage = async (content: string, file?: FileMetadata) => {
-    if (!channel?.id) {
-      console.log('No channel ID, cannot send message')
-      return
-    }
-
+  const handleSendMessage = async (content: string, file: FileMetadata | null = null) => {
     console.log('Sending message:', { content, file })
     try {
-      await sendMessage(content, file)
+      await sendMessage(content, file ?? null)
       // Scroll to bottom after sending
       if (containerRef.current) {
-        scrollToBottom(containerRef.current)
+        scrollToBottom(containerRef.current, true)
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -148,17 +134,22 @@ export default function ChannelPage({ params }: ChannelPageProps) {
         <div className="flex-1 min-h-0 flex flex-col relative" ref={containerRef}>
           <div className="absolute inset-0 flex flex-col">
             <div className="flex-1 min-h-0">
-              <MessageList 
-                messages={messages} 
+              <MessageList
+                messages={messages}
                 isLoading={isLoadingMessages}
                 isLoadingMore={isLoadingMore}
                 hasMore={hasMore}
                 onLoadMore={loadMore}
                 onThreadClick={handleThreadClick}
+                context="channel"
               />
             </div>
             <div className="flex-shrink-0 bg-white border-t">
-              <MessageInput onSend={handleSendMessage} disabled={!channel?.id} />
+              <MessageInput
+                onSend={handleSendMessage}
+                context="channel"
+                placeholder="Message"
+              />
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, ReactNode } from 'react'
 import { useChannels } from '@/hooks/useChannels'
-import { Channel } from '@/lib/init-data'
+import { Channel } from '@/types/models'
 
 interface ChannelContextType {
   channels: Channel[]

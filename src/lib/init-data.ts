@@ -1,12 +1,9 @@
 import { supabase } from './supabase'
+import type { Channel } from '@/types/models'
 
-export interface Channel {
-  id: string
-  name: string
-  description: string
-}
+export type { Channel }
 
-export const defaultChannels: Omit<Channel, 'id'>[] = [
+export const defaultChannels: Omit<Channel, 'id' | 'createdAt'>[] = [
   {
     name: 'general',
     description: 'General discussion for everyone'

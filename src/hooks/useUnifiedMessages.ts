@@ -7,14 +7,17 @@ import { useMessageMutation } from '@/hooks/useMessageMutation'
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { DataTransformer } from '@/lib/transformers'
 import { MESSAGE_SELECT } from '@/lib/data-access'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Database } from '@/types/supabase'
+import type { FileMetadata } from '@/hooks/useFileUpload'
 
 interface MessageContext {
   type: 'channel' | 'dm' | 'thread'
   id: string
   parentMessage?: {
     channelId: string | null
-    conversationId: string | undefined
-  }
+    conversationId: string | null
+  } | null
 }
 
 interface UseUnifiedMessagesReturn {
@@ -24,28 +27,18 @@ interface UseUnifiedMessagesReturn {
   hasMore: boolean
   error: Error | null
   isAtBottom: boolean
-  sendMessage: (content: string, file?: FileMetadata) => Promise<void>
+  sendMessage: (content: string, file: FileMetadata | null) => Promise<void>
   loadMore: () => Promise<void>
   checkIsAtBottom: (container: HTMLElement) => boolean
-  scrollToBottom: (container: HTMLElement, smooth?: boolean) => void
+  scrollToBottom: (container: HTMLElement, smooth: boolean) => void
   handleMessagesChange: (container: HTMLElement | null, newMessages: Message[]) => void
-}
-
-interface FileMetadata {
-  bucket_path: string
-  file_name: string
-  file_size: number
-  content_type: string
-  is_image: boolean
-  image_width?: number
-  image_height?: number
 }
 
 export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesReturn {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [cursor, setCursor] = useState<string | undefined>(undefined)
+  const [cursor, setCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -93,7 +86,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
       console.log('No context.id provided, skipping fetch')
       setMessages([])
       setIsLoading(false)
-      setCursor(undefined)
+      setCursor(null)
       setHasMore(false)
       return
     }
@@ -152,7 +145,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
         console.log('No messages found')
         setMessages([])
         setHasMore(false)
-        setCursor(undefined)
+        setCursor(null)
         return
       }
 
@@ -252,77 +245,32 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
   }
 
   // Send a message
-  const sendMessage = async (content: string, file?: FileMetadata) => {
+  const sendMessage = async (content: string, file: FileMetadata | null = null) => {
     if (!user || !content.trim()) return
 
     try {
-      const initialMessageData = {
+      const messageParams = {
         content,
-        user_id: user.id,
-        ...(context.type === 'thread' ? {
-          parent_message_id: context.id,
-          channel_id: context.parentMessage?.channelId,
-          conversation_id: context.parentMessage?.conversationId
-        } : {
-          [context.type === 'channel' ? 'channel_id' : 'conversation_id']: context.id
-        })
+        channelId: context.type === 'thread' ? context.parentMessage?.channelId ?? null : context.type === 'channel' ? context.id : null,
+        conversationId: context.type === 'thread' ? context.parentMessage?.conversationId ?? null : context.type === 'dm' ? context.id : null,
+        parentMessageId: context.type === 'thread' ? context.id : null,
+        fileMetadata: file
       }
 
-      // First insert the message
-      const { data: newMessage, error: messageError } = await supabase
+      const newMessage = await sendMessageMutation(messageParams)
+      if (!newMessage) return
+
+      // Fetch the complete message with the file
+      const { data: updatedMessage, error: fetchError } = await supabase
         .from('messages')
-        .insert(initialMessageData)
         .select(MESSAGE_SELECT)
+        .eq('id', newMessage.id)
         .single()
 
-      if (messageError) throw messageError
+      if (fetchError) throw fetchError
 
-      // If we have a file, create the file record
-      if (file && newMessage) {
-        const { error: fileError } = await supabase
-        .from('files')
-        .insert({
-            message_id: newMessage.id,
-            user_id: user.id,
-          bucket_path: file.bucket_path,
-          file_name: file.file_name,
-          file_size: file.file_size,
-          content_type: file.content_type,
-          is_image: file.is_image,
-          ...(file.is_image ? {
-            image_width: file.image_width,
-            image_height: file.image_height,
-          } : {})
-      })
-
-      if (fileError) {
-        console.error('Error creating file record:', fileError)
-        // If file record creation fails, delete the message
-        await supabase
-          .from('messages')
-          .delete()
-            .eq('id', newMessage.id)
-        throw fileError
-      }
-
-        // Fetch the complete message with the file
-        const { data: updatedMessage, error: fetchError } = await supabase
-          .from('messages')
-          .select(MESSAGE_SELECT)
-          .eq('id', newMessage.id)
-          .single()
-
-        if (fetchError) throw fetchError
-
-        if (updatedMessage) {
-          const transformedMessage = DataTransformer.toMessage(updatedMessage as DbJoinedMessage)
-          if (transformedMessage) {
-            setMessages(prev => [...prev, transformedMessage])
-          }
-        }
-      } else if (newMessage) {
-        // If no file, just transform and add the message
-        const transformedMessage = DataTransformer.toMessage(newMessage as DbJoinedMessage)
+      if (updatedMessage) {
+        const transformedMessage = DataTransformer.toMessage(updatedMessage as DbJoinedMessage)
         if (transformedMessage) {
           setMessages(prev => [...prev, transformedMessage])
         }

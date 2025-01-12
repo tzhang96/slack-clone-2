@@ -10,7 +10,7 @@ interface UserAvatarProps {
   name: string
   className?: string
   showStatus?: boolean
-  lastSeen?: string
+  lastSeen?: string | null
   size?: 'xs' | 'sm' | 'md'
 }
 

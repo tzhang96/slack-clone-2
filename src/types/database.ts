@@ -4,7 +4,7 @@ export interface DbUser {
   username: string
   full_name: string
   last_seen: string | null
-  status?: string
+  status: string | null
 }
 
 // Represents the shape of joined data from Supabase
@@ -13,7 +13,7 @@ export interface DbJoinedUser {
   username: string
   full_name: string
   last_seen: string | null
-  status?: string
+  status: string | null
 }
 
 export interface DbJoinedReaction {
@@ -39,6 +39,7 @@ export interface DbJoinedFile {
 
 export interface DbJoinedThreadParticipant {
   id: string
+  thread_id: string
   user_id: string
   last_read_at: string
   created_at: string
@@ -54,13 +55,13 @@ export interface DbJoinedMessage {
   conversation_id: string | null
   parent_message_id: string | null
   user_id: string
-  reply_count?: number
-  latest_reply_at?: string
-  is_thread_parent?: boolean
+  reply_count: number | null
+  latest_reply_at: string | null
+  is_thread_parent: boolean | null
   users: DbJoinedUser[]
-  reactions?: DbJoinedReaction[]
-  files?: DbJoinedFile[]
-  thread_participants?: DbJoinedThreadParticipant[]
+  reactions: DbJoinedReaction[] | null
+  files: DbJoinedFile[] | null
+  thread_participants: DbJoinedThreadParticipant[] | null
 }
 
 // These represent the base table types without joins
@@ -72,9 +73,9 @@ export interface DbMessage {
   conversation_id: string | null
   parent_message_id: string | null
   user_id: string
-  reply_count?: number
-  latest_reply_at?: string
-  is_thread_parent?: boolean
+  reply_count: number | null
+  latest_reply_at: string | null
+  is_thread_parent: boolean | null
 }
 
 export interface DbReaction {

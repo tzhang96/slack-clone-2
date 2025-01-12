@@ -4,8 +4,8 @@ export interface DMUser {
   id: string
   full_name: string
   username: string
-  avatar_url?: string
-  last_seen: string
+  avatar_url: string | null
+  last_seen: string | null
 }
 
 export interface DMMessage {
@@ -14,7 +14,7 @@ export interface DMMessage {
   user_id: string
   content: string
   created_at: string
-  user?: DMUser
+  user: DMUser | null
 }
 
 export interface DMConversation {
@@ -23,9 +23,9 @@ export interface DMConversation {
   updated_at: string
   user1_id: string
   user2_id: string
-  user1?: DMUser
-  user2?: DMUser
-  last_message?: DMMessage
+  user1: DMUser | null
+  user2: DMUser | null
+  last_message: DMMessage | null
 }
 
 // Helper type for Supabase

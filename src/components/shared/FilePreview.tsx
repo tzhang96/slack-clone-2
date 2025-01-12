@@ -1,10 +1,10 @@
 import { useSupabase } from '@/components/providers/SupabaseProvider'
-import { MessageFile } from '@/types/chat'
+import { File } from '@/types/models'
 import { FileIcon, ImageIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface FilePreviewProps {
-  file: MessageFile
+  file: File
   onImageLoad?: () => void
 }
 

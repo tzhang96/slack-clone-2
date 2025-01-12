@@ -1,62 +1,55 @@
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { useAuth } from '@/lib/auth'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
+import { FileMetadata } from '@/hooks/useFileUpload'
 
-interface FileMetadata {
-  bucket_path: string
-  file_name: string
-  file_size: number
-  content_type: string
-  is_image: boolean
-  image_width?: number
-  image_height?: number
+interface SendMessageParams {
+  content: string
+  channelId: string | null
+  conversationId: string | null
+  parentMessageId: string | null
+  fileMetadata: FileMetadata | null
 }
 
 export function useMessageMutation() {
-  const { supabase } = useSupabase()
   const { user } = useAuth()
+  const { supabase } = useSupabase()
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
 
-  const sendMessage = useCallback(async (
-    channelId: string,
-    content: string,
-    fileMetadata?: FileMetadata
-  ) => {
-    if (!user) throw new Error('User not authenticated')
+  const sendMessage = async ({
+    content,
+    channelId,
+    conversationId,
+    parentMessageId,
+    fileMetadata
+  }: SendMessageParams) => {
+    if (!user) return null
+
+    setIsLoading(true)
+    setError(null)
 
     try {
-      console.log('Sending message with:', {
-        channelId,
+      const messageData = {
         content,
-        userId: user.id,
-        fileMetadata
-      })
+        user_id: user.id,
+        channel_id: channelId,
+        conversation_id: conversationId,
+        parent_message_id: parentMessageId
+      }
 
       // First insert the message
       const { data: message, error: messageError } = await supabase
         .from('messages')
-        .insert({
-          channel_id: channelId,
-          content: content || '', // Empty string if no content
-          user_id: user.id,
-        })
+        .insert(messageData)
         .select()
         .single()
 
-      if (messageError) {
-        console.error('Error creating message:', messageError)
-        throw messageError
-      }
+      if (messageError) throw messageError
 
-      console.log('Created message:', message)
-
-      // If there's file metadata, create the file record
+      // If we have a file, create the file record
       if (fileMetadata && message) {
-        console.log('Creating file record:', {
-          messageId: message.id,
-          fileMetadata
-        })
-
-        const { data: fileData, error: fileError } = await supabase
+        const { error: fileError } = await supabase
           .from('files')
           .insert({
             message_id: message.id,
@@ -66,38 +59,26 @@ export function useMessageMutation() {
             file_size: fileMetadata.file_size,
             content_type: fileMetadata.content_type,
             is_image: fileMetadata.is_image,
-            ...(fileMetadata.is_image ? {
-              image_width: fileMetadata.image_width,
-              image_height: fileMetadata.image_height,
-            } : {}),
+            image_width: fileMetadata.image_width,
+            image_height: fileMetadata.image_height
           })
-          .select()
-          .single()
 
-        console.log('File record result:', {
-          data: fileData,
-          error: fileError
-        })
-
-        if (fileError) {
-          console.error('Error creating file record:', fileError)
-          // If file record creation fails, delete the message
-          await supabase
-            .from('messages')
-            .delete()
-            .eq('id', message.id)
-          throw fileError
-        }
+        if (fileError) throw fileError
       }
 
       return message
-    } catch (error) {
-      console.error('Error sending message:', error)
-      throw error
+    } catch (err) {
+      console.error('Error sending message:', err)
+      setError(err as Error)
+      return null
+    } finally {
+      setIsLoading(false)
     }
-  }, [supabase, user])
+  }
 
   return {
     sendMessage,
+    isLoading,
+    error
   }
 } 

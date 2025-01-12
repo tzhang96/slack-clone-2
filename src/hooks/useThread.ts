@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { useAuth } from '@/lib/auth'
 import type { Message, Thread, ThreadParticipant } from '@/types/models'
-import type { DbMessage } from '@/types/database'
+import type { DbMessage, DbJoinedMessage } from '@/types/database'
 import { MessageRepository, MESSAGE_SELECT } from '@/lib/data-access'
 import { DataTransformer } from '@/lib/transformers'
 
@@ -68,7 +68,7 @@ export function useThread(threadId: string): UseThreadReturn {
 
       if (error) throw error
 
-      const newReplies = (data as DbMessage[])
+      const newReplies = (data as DbJoinedMessage[])
         .map(msg => DataTransformer.toMessage(msg))
         .filter((msg): msg is Message => msg !== null)
 

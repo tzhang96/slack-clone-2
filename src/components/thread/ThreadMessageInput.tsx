@@ -1,19 +1,22 @@
-import { MessageInput, FileMetadata } from '../chat/MessageInput'
+import { MessageInput } from '../chat/MessageInput'
+import { FileMetadata } from '@/hooks/useFileUpload'
 
 interface ThreadMessageInputProps {
-  onSend: (content: string, file?: FileMetadata) => void
+  onSend: (content: string, file: FileMetadata | null) => Promise<void>
   disabled?: boolean
 }
 
 export function ThreadMessageInput({ onSend, disabled }: ThreadMessageInputProps) {
+  const handleSend = async (content: string, file: FileMetadata | null) => {
+    await onSend(content, file)
+  }
+
   return (
-    <div className="flex-shrink-0 bg-white border-t">
-      <MessageInput
-        onSend={onSend}
-        context="thread"
-        placeholder="Reply in thread..."
-        disabled={disabled}
-      />
-    </div>
+    <MessageInput
+      onSend={handleSend}
+      context="thread"
+      disabled={disabled}
+      placeholder="Reply in thread..."
+    />
   )
 } 

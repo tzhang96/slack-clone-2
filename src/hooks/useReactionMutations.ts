@@ -1,5 +1,5 @@
 import { useSupabase } from '@/components/providers/SupabaseProvider'
-import { ReactionInsert } from '@/types/supabase'
+import { ReactionInsert, ReactionWithUser } from '@/types/supabase'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 export const useReactionMutations = () => {
@@ -52,7 +52,35 @@ export const useReactionMutations = () => {
 
       if (error) throw error
     },
-    onSuccess: (_, { messageId }) => {
+    onMutate: async ({ messageId, emoji }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['reactions', messageId] })
+
+      // Snapshot the previous value
+      const previousReactions = queryClient.getQueryData<ReactionWithUser[]>(['reactions', messageId])
+
+      // Optimistically update to the new value
+      if (previousReactions) {
+        queryClient.setQueryData<ReactionWithUser[]>(['reactions', messageId], old => {
+          if (!old) return []
+          return old.filter(reaction => 
+            !(reaction.emoji === emoji && reaction.user.id === session?.user?.id)
+          )
+        })
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousReactions }
+    },
+    onError: (err, { messageId }, context) => {
+      console.error('Error removing reaction:', err)
+      // If there was an error, roll back to the previous value
+      if (context?.previousReactions) {
+        queryClient.setQueryData(['reactions', messageId], context.previousReactions)
+      }
+    },
+    onSettled: (_, __, { messageId }) => {
+      // Always refetch after error or success to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['reactions', messageId] })
     }
   })

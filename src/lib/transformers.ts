@@ -10,7 +10,8 @@ import type {
   DbJoinedThreadParticipant,
   DbJoinedFile
 } from '@/types/database'
-import type { User, Message, Reaction, File, ThreadParticipant } from '@/types/models'
+import type { User, Message, File, ThreadParticipant } from '@/types/models'
+import type { ReactionWithUser } from '@/types/supabase'
 
 export class DataTransformer {
   static toUser(dbUser: DbUser | DbJoinedUser | null | undefined, fallbackId?: string): User {
@@ -19,7 +20,7 @@ export class DataTransformer {
         id: fallbackId || 'unknown',
         username: 'Unknown',
         fullName: 'Unknown User',
-        lastSeen: undefined,
+        lastSeen: null,
         status: 'offline'
       }
     }
@@ -28,7 +29,7 @@ export class DataTransformer {
       id: dbUser.id,
       username: dbUser.username,
       fullName: dbUser.full_name,
-      lastSeen: dbUser.last_seen || undefined,
+      lastSeen: dbUser.last_seen,
       status: dbUser.status || 'offline'
     }
   }
@@ -49,13 +50,13 @@ export class DataTransformer {
       fileSize: dbFile.file_size,
       contentType: dbFile.content_type,
       isImage: dbFile.is_image,
-      imageWidth: dbFile.image_width || undefined,
-      imageHeight: dbFile.image_height || undefined,
+      imageWidth: dbFile.image_width || null,
+      imageHeight: dbFile.image_height || null,
       createdAt: dbFile.created_at
     }
   }
 
-  static toReaction(dbReaction: DbJoinedReaction): Reaction | null {
+  static toReaction(dbReaction: DbJoinedReaction): ReactionWithUser | null {
     // Ensure we have user data
     const user = dbReaction.users[0]
     if (!user) return null
@@ -63,19 +64,22 @@ export class DataTransformer {
     return {
       id: dbReaction.id,
       emoji: dbReaction.emoji,
-      userId: dbReaction.user_id,
-      user: this.toUser(user)
+      user: {
+        id: user.id,
+        username: user.username,
+        full_name: user.full_name
+      }
     }
   }
 
-  static toThreadParticipant(dbParticipant: DbJoinedThreadParticipant & { thread_id: string }): ThreadParticipant {
+  static toThreadParticipant(dbParticipant: DbJoinedThreadParticipant): ThreadParticipant {
     return {
       id: dbParticipant.id,
       threadId: dbParticipant.thread_id,
       userId: dbParticipant.user_id,
       lastReadAt: dbParticipant.last_read_at,
       createdAt: dbParticipant.created_at,
-      user: dbParticipant.users[0] ? this.toUser(dbParticipant.users[0]) : undefined
+      user: dbParticipant.users[0] ? this.toUser(dbParticipant.users[0]) : null
     }
   }
 
@@ -88,19 +92,19 @@ export class DataTransformer {
       id: dbMessage.id,
       content: dbMessage.content,
       createdAt: dbMessage.created_at,
-      channelId: dbMessage.channel_id || undefined,
-      conversationId: dbMessage.conversation_id || undefined,
-      parentMessageId: dbMessage.parent_message_id || undefined,
+      channelId: dbMessage.channel_id,
+      conversationId: dbMessage.conversation_id,
+      parentMessageId: dbMessage.parent_message_id,
       replyCount: dbMessage.reply_count || 0,
-      latestReplyAt: dbMessage.latest_reply_at,
+      latestReplyAt: dbMessage.latest_reply_at || null,
       isThreadParent: dbMessage.is_thread_parent || false,
       user: this.toUser(user),
       reactions: dbMessage.reactions
         ?.map(r => this.toReaction(r))
-        .filter((r): r is Reaction => r !== null) || [],
-      file: dbMessage.files?.[0] ? this.toFile(dbMessage.files[0]) : undefined,
+        .filter((r): r is ReactionWithUser => r !== null) || [],
+      file: dbMessage.files?.[0] ? this.toFile(dbMessage.files[0]) : null,
       threadParticipants: dbMessage.thread_participants
-        ?.map(p => this.toThreadParticipant({ ...p, thread_id: dbMessage.id })) || []
+        ?.map(p => this.toThreadParticipant(p)) || null
     }
   }
 } 

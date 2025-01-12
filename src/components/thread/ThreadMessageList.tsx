@@ -4,17 +4,17 @@ import { MessageList } from '../chat/MessageList'
 interface ThreadMessageListProps {
   messages: Message[]
   isLoading: boolean
-  isLoadingMore?: boolean
-  hasMore?: boolean
-  onLoadMore?: () => void
+  isLoadingMore: boolean
+  hasMore: boolean
+  onLoadMore: (() => void) | null
 }
 
 export function ThreadMessageList({
   messages,
   isLoading,
-  isLoadingMore = false,
-  hasMore = false,
-  onLoadMore
+  isLoadingMore,
+  hasMore,
+  onLoadMore = null
 }: ThreadMessageListProps) {
   return (
     <div className="flex-1 min-h-0">
@@ -23,7 +23,7 @@ export function ThreadMessageList({
         isLoading={isLoading}
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
-        onLoadMore={onLoadMore}
+        onLoadMore={onLoadMore || undefined}
         context="thread"
       />
     </div>

@@ -4,6 +4,7 @@ import { MessageInput } from '@/components/chat/MessageInput'
 import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
 import { Message } from '@/types/chat'
+import { FileMetadata } from '@/hooks/useFileUpload'
 
 interface DMChatProps {
   conversationId: string
@@ -47,13 +48,13 @@ export function DMChat({ conversationId }: DMChatProps) {
     handleMessagesChange(containerRef.current, messages)
   }, [messages, handleMessagesChange, conversationId])
 
-  const handleSendMessage = async (content: string, file?: any) => {
+  const handleSendMessage = async (content: string, file: FileMetadata | null) => {
     try {
       console.log('Sending message in DMChat:', { content, file })
       await sendMessage(content, file)
       // Scroll to bottom after sending
       if (containerRef.current) {
-        scrollToBottom(containerRef.current)
+        scrollToBottom(containerRef.current, true)
       }
     } catch (error) {
       console.error('Error sending message in DMChat:', error)

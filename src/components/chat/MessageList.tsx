@@ -15,19 +15,26 @@ import { MessageCircle } from 'lucide-react'
 interface MessageListProps {
   messages: Message[]
   isLoading: boolean
-  isLoadingMore?: boolean
-  hasMore?: boolean
+  isLoadingMore: boolean
+  hasMore: boolean
   onLoadMore?: () => void
-  context?: 'channel' | 'dm' | 'thread'
+  context: 'channel' | 'dm' | 'thread'
   onThreadClick?: (message: Message) => void
 }
 
 interface MessageRowData {
   messages: Message[]
-  currentUserId: string | undefined
-  onThreadClick?: (message: Message) => void
+  currentUserId?: string
   setSize: (index: number, size: number) => void
-  context: 'thread' | 'channel' | 'dm'
+  onThreadClick?: (message: Message) => void
+  context: 'channel' | 'dm' | 'thread'
+}
+
+interface MessageRowProps {
+  index: number
+  style: React.CSSProperties
+  data: MessageRowData
+  onThreadClick: ((message: Message) => void) | null
 }
 
 const MessageRow = memo(({ data, index, style }: ListChildComponentProps<MessageRowData>) => {
@@ -68,7 +75,7 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
               userId={message.user.id} 
               name={message.user.fullName} 
               lastSeen={message.user.lastSeen || undefined}
-              showStatus={false}
+              size="sm"
             />
             
             <div className="flex-1 min-w-0 pr-8">
@@ -149,8 +156,8 @@ const LoadingBanner = ({ children }: { children: React.ReactNode }) => (
 export function MessageList({ 
   messages, 
   isLoading, 
-  isLoadingMore = false,
-  hasMore = false,
+  isLoadingMore,
+  hasMore,
   onLoadMore,
   context = 'channel',
   onThreadClick
@@ -286,9 +293,9 @@ export function MessageList({
         onScroll={handleScroll}
         itemData={{
           messages,
-          currentUserId: user?.id,
+          currentUserId: user?.id || undefined,
           setSize,
-          onThreadClick,
+          onThreadClick: onThreadClick || undefined,
           context
         }}
         overscanCount={5}

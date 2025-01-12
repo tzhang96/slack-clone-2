@@ -1,23 +1,30 @@
+import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Database } from '@/types/supabase'
-import { useCallback, useState } from 'react'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
-interface FileMetadata {
+export interface FileMetadata {
   bucket_path: string
   file_name: string
   file_size: number
   content_type: string
   is_image: boolean
-  image_width?: number
-  image_height?: number
+  image_width: number | null
+  image_height: number | null
 }
 
-export function useFileUpload() {
-  const supabase = createClientComponentClient<Database>()
+interface UseFileUploadReturn {
+  uploadFile: (file: File) => Promise<FileMetadata | null>
+  isUploading: boolean
+  error: Error | null
+}
+
+export function useFileUpload(): UseFileUploadReturn {
+  const { supabase } = useSupabase()
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
-  const uploadFile = useCallback(async (file: File): Promise<FileMetadata> => {
+  const uploadFile = async (file: File): Promise<FileMetadata | null> => {
     setIsUploading(true)
     setError(null)
 
@@ -36,8 +43,8 @@ export function useFileUpload() {
       if (uploadError) throw uploadError
 
       // Get image dimensions if it's an image
-      let imageWidth: number | undefined
-      let imageHeight: number | undefined
+      let imageWidth: number | null = null
+      let imageHeight: number | null = null
       const isImage = file.type.startsWith('image/')
 
       if (isImage) {
@@ -60,23 +67,21 @@ export function useFileUpload() {
         file_size: file.size,
         content_type: file.type,
         is_image: isImage,
-        ...(isImage && {
-          image_width: imageWidth,
-          image_height: imageHeight,
-        }),
+        image_width: imageWidth,
+        image_height: imageHeight,
       }
     } catch (err) {
       console.error('Error uploading file:', err)
       setError(err as Error)
-      throw err
+      return null
     } finally {
       setIsUploading(false)
     }
-  }, [supabase])
+  }
 
   return {
     uploadFile,
     isUploading,
-    error,
+    error
   }
 } 
