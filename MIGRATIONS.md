@@ -247,3 +247,33 @@ $$ LANGUAGE plpgsql;
    SELECT * FROM thread_participants
    WHERE user_id = auth.uid();
    ``` 
+
+### 20240125000000_add_channel_deletion_procedure.sql
+
+Adds a stored procedure for safely deleting channels and all associated data. Key features:
+
+- Safely handles deletion of channels with threaded messages
+- Clears thread relationships before deletion to prevent foreign key violations
+- Cascades deletion to all related data:
+  - Messages in the channel
+  - Reactions on those messages
+  - Files attached to messages
+  - Thread participants
+- Handles storage file cleanup gracefully:
+  - Database records are deleted immediately
+  - Storage files are marked for cleanup
+  - Actual storage deletion happens asynchronously
+
+**Manual Verification:**
+1. Create a channel with some messages, including:
+   - Regular messages
+   - Threaded messages with replies
+   - Messages with file attachments
+2. Delete the channel
+3. Verify that:
+   - Channel and all messages are deleted
+   - No orphaned reactions or files remain
+   - No foreign key violations occur
+   - Thread relationships are cleaned up properly
+
+**Note:** Storage file cleanup requires the `net` extension and proper configuration of `app.storage_url` and `app.storage_key`. If these are not available, file records will be deleted from the database but storage cleanup will be deferred. 

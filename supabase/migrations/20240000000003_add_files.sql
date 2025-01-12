@@ -41,15 +41,26 @@ CREATE POLICY "Users can delete their own files" ON files
 CREATE OR REPLACE FUNCTION delete_storage_file()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Delete file from storage bucket
-    -- Note: This requires proper configuration of storage admin policy
-    PERFORM net.http_delete(
-        url := current_setting('app.storage_url') || '/object/chat-files/' || OLD.bucket_path,
-        headers := jsonb_build_object(
-            'Authorization', 'Bearer ' || current_setting('app.storage_key')
-        )
-    );
+    -- Only attempt storage deletion if net extension is available
+    IF EXISTS (
+        SELECT 1 FROM pg_extension WHERE extname = 'net'
+    ) THEN
+        -- Delete file from storage bucket
+        PERFORM net.http_delete(
+            url := current_setting('app.storage_url') || '/object/chat-files/' || OLD.bucket_path,
+            headers := jsonb_build_object(
+                'Authorization', 'Bearer ' || current_setting('app.storage_key')
+            )
+        );
+    END IF;
+    
+    -- Always return OLD to allow the deletion to proceed
     RETURN OLD;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log the error but allow the deletion to proceed
+        RAISE WARNING 'Failed to delete storage file: %', SQLERRM;
+        RETURN OLD;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

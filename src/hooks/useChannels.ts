@@ -130,16 +130,34 @@ export function useChannels(): UseChannelsReturn {
 
   const deleteChannel = async (channelId: string): Promise<void> => {
     try {
-      const { error } = await supabase
-        .from('channels')
-        .delete()
-        .eq('id', channelId)
+      // Validate UUID format
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(channelId)) {
+        console.error('Invalid channel ID format:', channelId)
+        throw new Error('Invalid channel ID format')
+      }
 
-      if (error) throw error
+      console.log('Attempting to delete channel with ID:', channelId)
 
-      // Don't need to update channels here as the subscription will handle it
+      // Start a transaction to ensure atomic operations
+      const { error: transactionError } = await supabase.rpc('delete_channel_with_messages', {
+        channel_id_param: channelId
+      })
+
+      if (transactionError) {
+        console.error('Error in delete transaction:', transactionError)
+        throw transactionError
+      }
+
+      console.log('Successfully deleted channel and its messages')
     } catch (err) {
-      console.error('Error deleting channel:', err)
+      console.error('Error in deleteChannel:', err)
+      if (err instanceof Error) {
+        console.error('Error details:', {
+          message: err.message,
+          name: err.name,
+          stack: err.stack
+        })
+      }
       throw err
     }
   }

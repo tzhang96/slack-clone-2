@@ -30,32 +30,20 @@ export const useReactions = (messageId: string) => {
     console.log(`Setting up reaction subscription for message ${messageId}`)
     
     const channel = supabase
-      .channel(`reactions:${messageId}:${Math.random()}`)
+      .channel(`reactions:${messageId}`)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'reactions',
           filter: `message_id=eq.${messageId}`
         },
         async (payload) => {
-          console.log('Reaction INSERT event:', payload)
-          await refreshReactions()
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'reactions',
-          filter: `old_message_id=eq.${messageId}`
-        },
-        async (payload) => {
-          console.log('Reaction DELETE event received:', {
-            old: payload.old,
+          console.log('Reaction event received:', {
             eventType: payload.eventType,
+            old: payload.old,
+            new: payload.new,
             table: payload.table,
             schema: payload.schema,
             commit_timestamp: payload.commit_timestamp
@@ -63,9 +51,9 @@ export const useReactions = (messageId: string) => {
           
           try {
             await refreshReactions()
-            console.log('Successfully refreshed reactions after DELETE')
+            console.log('Successfully refreshed reactions after event')
           } catch (error) {
-            console.error('Error refreshing reactions after DELETE:', error)
+            console.error('Error refreshing reactions after event:', error)
           }
         }
       )

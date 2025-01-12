@@ -59,6 +59,7 @@ export function ChannelList() {
   }
 
   const handleDeleteClick = (channel: { id: string, name: string }) => {
+    console.log('Delete clicked for channel:', channel)
     setChannelToDelete(channel)
     setIsDeleteModalOpen(true)
     setDeleteConfirmation('')
@@ -66,19 +67,39 @@ export function ChannelList() {
   }
 
   const handleDeleteConfirm = async () => {
-    if (!channelToDelete) return
+    if (!channelToDelete) {
+      console.error('No channel selected for deletion')
+      return
+    }
     
     try {
-      console.log('Attempting to delete channel:', channelToDelete)
+      console.log('Confirming deletion of channel:', {
+        id: channelToDelete.id,
+        name: channelToDelete.name,
+        confirmation: deleteConfirmation
+      })
+
       if (!deleteChannel) {
+        console.error('Delete channel function is not available')
         throw new Error('Delete channel function is not available')
       }
+
+      console.log('Calling deleteChannel with ID:', channelToDelete.id)
       await deleteChannel(channelToDelete.id)
+      
+      console.log('Channel deleted successfully')
       setIsDeleteModalOpen(false)
       setChannelToDelete(null)
       setDeleteConfirmation('')
     } catch (err) {
       console.error('Error in handleDeleteConfirm:', err)
+      if (err instanceof Error) {
+        console.error('Error details:', {
+          message: err.message,
+          name: err.name,
+          stack: err.stack
+        })
+      }
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete channel')
     }
   }
@@ -256,10 +277,12 @@ export function ChannelList() {
               </p>
               <p className="text-red-600 text-sm">
                 This will permanently delete:
-                <ul className="list-disc list-inside mt-1 ml-2">
-                  <li>The channel and its settings</li>
-                  <li>All messages in the channel</li>
-                </ul>
+              </p>
+              <ul className="list-disc list-inside mt-1 ml-2 text-red-600 text-sm">
+                <li>The channel and its settings</li>
+                <li>All messages in the channel</li>
+              </ul>
+              <p className="text-red-600 text-sm mt-2">
                 This action cannot be undone.
               </p>
             </div>
