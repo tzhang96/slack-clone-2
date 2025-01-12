@@ -1,14 +1,15 @@
 import { useState, useCallback } from 'react';
 import { Search } from 'lucide-react';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebounce } from '../../hooks/useDebounce';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
   placeholder?: string;
+  initialValue?: string;
 }
 
-export const SearchBar = ({ onSearch, placeholder = 'Search messages...' }: SearchBarProps) => {
-  const [query, setQuery] = useState('');
+export const SearchBar = ({ onSearch, placeholder = 'Search messages...', initialValue = '' }: SearchBarProps) => {
+  const [query, setQuery] = useState(initialValue);
   
   const debouncedSearch = useDebounce((value: string) => {
     if (value.trim()) {
