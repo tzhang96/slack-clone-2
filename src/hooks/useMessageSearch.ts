@@ -1,11 +1,16 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { DbMessage } from '@/types/database';
+import { useAuth } from '@/lib/auth';
 
-interface SearchResult extends DbMessage {
+export interface SearchResult extends DbMessage {
   ts_rank: number;
   context_name: string;
-  context_type: 'channel' | 'dm';
+  context_type: 'channel' | 'dm' | 'thread';
+  parent_message_id: string | null;
+  is_thread_parent: boolean;
+  reply_count: number;
+  channel_name: string | null;
 }
 
 interface UseMessageSearchResult {
@@ -17,6 +22,7 @@ interface UseMessageSearchResult {
 }
 
 export function useMessageSearch(): UseMessageSearchResult {
+  const { user } = useAuth();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -40,9 +46,9 @@ export function useMessageSearch(): UseMessageSearchResult {
       const { data, error: searchError } = await supabase
         .rpc('search_messages', {
           search_query: trimmedQuery,
-          channel_id_param: channelId || null,
-          limit_param: 50,
-          offset_param: 0
+          searching_user_id: user?.id,
+          limit_val: 50,
+          offset_val: 0
         });
 
       if (searchError) throw searchError;

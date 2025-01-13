@@ -69,7 +69,11 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
   return (
     <div style={style}>
       <div className="py-[1px]">
-        <div ref={messageRef} className="group px-6 py-0.5 hover:bg-gray-50 transition-colors duration-100">
+        <div 
+          ref={messageRef} 
+          data-message-id={message.id}
+          className="group px-6 py-0.5 hover:bg-gray-50 transition-colors duration-100"
+        >
           <div className="flex items-start gap-x-2">
             <UserAvatar 
               userId={message.user.id} 
@@ -77,7 +81,6 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
               lastSeen={message.user.lastSeen || undefined}
               size="sm"
             />
-            
             <div className="flex-1 min-w-0 pr-8">
               <div className="flex items-baseline gap-x-2">
                 <span className="font-bold text-gray-900">

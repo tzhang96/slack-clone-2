@@ -15,7 +15,7 @@ export function Sidebar() {
   const currentDM = params?.conversationId as string
 
   return (
-    <div className="flex flex-col h-full bg-gray-800 text-white w-64">
+    <div className="flex flex-col h-full bg-gray-800 text-white">
       {/* Channels section */}
       <div className="flex-shrink-0">
         <ChannelList />

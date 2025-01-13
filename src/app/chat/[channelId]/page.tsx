@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageInput } from '@/components/chat/MessageInput'
@@ -26,16 +26,18 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   const router = useRouter()
   const { getChannelByName, isLoading: isLoadingChannel } = useChannelContext()
   const channel = getChannelByName(params.channelId)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [activeThread, setActiveThread] = useState<Message | null>(null)
 
+  // Log component mount and channel state
   useEffect(() => {
-    console.log('ChannelPage state:', {
+    console.log('[ChannelPage] Mount/Channel Update:', {
       channelId: params.channelId,
-      channel,
+      channelFound: !!channel,
       isLoadingChannel
     })
   }, [params.channelId, channel, isLoadingChannel])
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [activeThread, setActiveThread] = useState<Message | null>(null)
 
   const { 
     messages, 
@@ -48,44 +50,72 @@ export default function ChannelPage({ params }: ChannelPageProps) {
     handleMessagesChange,
     isAtBottom,
     checkIsAtBottom,
-    scrollToBottom
+    scrollToBottom,
+    jumpToMessage
   } = useUnifiedMessages({
     type: 'channel',
-    id: channel?.id || ''
+    id: channel?.id,
+    parentMessage: null,
+    enabled: !isLoadingChannel && !!channel
   })
 
+  // Extract message ID from URL hash and thread parameter
   useEffect(() => {
-    console.log('Message state updated:', {
-      messageCount: messages.length,
-      isLoadingMessages,
-      isLoadingMore,
-      hasMore,
-      error: error?.message
+    if (isLoadingChannel || !channel) return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const shouldOpenThread = searchParams.get('thread') === 'true';
+    const messageId = window.location.hash.replace('#message-', '');
+    
+    console.log('[ChannelPage] URL/Thread State:', {
+      messageId,
+      shouldOpenThread,
+      hasActiveThread: !!activeThread,
+      timestamp: new Date().toISOString()
     })
-  }, [messages, isLoadingMessages, isLoadingMore, hasMore, error])
+
+    // If there's no thread parameter, ensure thread is closed
+    if (!shouldOpenThread && activeThread) {
+      setActiveThread(null);
+      return;
+    }
+
+    if (!messageId) return;
+
+    // Find the message in the current messages array
+    const targetMessage = messages.find(m => m.id === messageId);
+    
+    if (targetMessage && shouldOpenThread && !activeThread) {
+      setActiveThread(targetMessage);
+    }
+    
+    if (containerRef.current) {
+      jumpToMessage(messageId, containerRef.current);
+    }
+  }, [channel, isLoadingChannel, jumpToMessage, messages, setActiveThread, activeThread]);
 
   // Redirect to general if channel doesn't exist
   useEffect(() => {
     if (!isLoadingChannel && !channel) {
-      console.log('Channel not found, redirecting to general')
       router.replace('/chat/general')
-      return
     }
   }, [channel, isLoadingChannel, router])
 
   // Handle message changes and scrolling
   useEffect(() => {
-    console.log('Handling message changes:', {
-      containerRef: !!containerRef.current,
+    if (!channel?.id) return;
+    
+    console.log('[ChannelPage] Message State Update:', {
+      channelId: channel.id,
       messageCount: messages.length,
-      channelId: channel?.id
+      isAtBottom,
+      timestamp: new Date().toISOString()
     })
     
-    handleMessagesChange(containerRef.current, channel?.id ? messages : [])
-  }, [messages, handleMessagesChange, channel?.id])
+    handleMessagesChange(containerRef.current, messages)
+  }, [messages, handleMessagesChange, channel?.id, isAtBottom])
 
   const handleSendMessage = async (content: string, file: FileMetadata | null = null) => {
-    console.log('Sending message:', { content, file })
     try {
       await sendMessage(content, file ?? null)
       // Scroll to bottom after sending
@@ -98,35 +128,26 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   }
 
   const handleThreadClick = (message: Message) => {
-    console.log('Opening thread for message:', message)
-    setActiveThread(message)
+    // Update URL first to trigger the effect
+    router.replace(`/chat/${params.channelId}?thread=true#message-${message.id}`);
   }
 
-  const handleCloseThread = () => {
-    console.log('Closing thread')
-    setActiveThread(null)
-  }
+  const handleCloseThread = useCallback(() => {
+    router.replace(`/chat/${params.channelId}`);
+  }, [router, params.channelId]);
 
   if (isLoadingChannel) {
-    console.log('Showing channel loading spinner')
     return <LoadingSpinner />
   }
 
   if (!channel) {
-    console.log('No channel, returning null')
     return null // Let the redirect effect handle this case
   }
 
-  console.log('Rendering channel page:', {
-    channelName: channel.name,
-    messageCount: messages.length,
-    hasActiveThread: !!activeThread
-  })
-
   return (
-    <div className="flex h-full">
-      <div className={`flex-1 flex flex-col ${activeThread ? 'lg:mr-[400px]' : ''}`}>
-        <div className="px-6 py-4 border-b flex-shrink-0">
+    <div className="flex h-full w-full [--header-height:73px] [--thread-width:400px]">
+      <div className={`flex-1 flex flex-col ${activeThread ? 'lg:mr-[--thread-width]' : ''}`}>
+        <div className="px-6 py-4 border-b flex-shrink-0 h-[--header-height]">
           <h1 className="text-xl font-semibold">#{channel.name}</h1>
           <p className="text-sm text-gray-500">{channel.description}</p>
         </div>
@@ -155,19 +176,9 @@ export default function ChannelPage({ params }: ChannelPageProps) {
         </div>
       </div>
 
-      {/* Thread Sidebar */}
+      {/* Thread Sidebar - Responsive */}
       {activeThread && (
-        <div className="hidden lg:block fixed top-0 right-0 bottom-0 w-[400px] border-l">
-          <ThreadSidebar
-            parentMessage={activeThread}
-            onClose={handleCloseThread}
-          />
-        </div>
-      )}
-
-      {/* Mobile Thread View */}
-      {activeThread && (
-        <div className="lg:hidden fixed inset-0 bg-white z-50">
+        <div className="fixed inset-0 bg-white z-50 lg:w-[--thread-width] lg:right-0 lg:left-auto lg:border-l lg:top-[--header-height]">
           <ThreadSidebar
             parentMessage={activeThread}
             onClose={handleCloseThread}

@@ -13,11 +13,12 @@ import type { FileMetadata } from '@/hooks/useFileUpload'
 
 interface MessageContext {
   type: 'channel' | 'dm' | 'thread'
-  id: string
+  id: string | undefined
   parentMessage?: {
     channelId: string | null
     conversationId: string | null
   } | null
+  enabled?: boolean
 }
 
 interface UseUnifiedMessagesReturn {
@@ -32,11 +33,22 @@ interface UseUnifiedMessagesReturn {
   checkIsAtBottom: (container: HTMLElement) => boolean
   scrollToBottom: (container: HTMLElement, smooth: boolean) => void
   handleMessagesChange: (container: HTMLElement | null, newMessages: Message[]) => void
+  jumpToMessage: (messageId: string, container: HTMLElement) => Promise<void>
 }
 
 export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesReturn {
+  // Log hook initialization
+  useEffect(() => {
+    console.log('[useUnifiedMessages] Initialize:', {
+      contextType: context.type,
+      contextId: context.id,
+      enabled: context.enabled,
+      timestamp: new Date().toISOString()
+    })
+  }, [context.type, context.id, context.enabled])
+
   const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
@@ -48,6 +60,175 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
 
   const MESSAGES_PER_PAGE = 25
   const SCROLL_THRESHOLD = 100
+
+  // Reset state when context changes
+  useEffect(() => {
+    console.log('[useUnifiedMessages] Reset State:', {
+      contextType: context.type,
+      contextId: context.id,
+      timestamp: new Date().toISOString()
+    })
+    setMessages([])
+    setIsLoading(false)
+    setError(null)
+    setCursor(null)
+    setHasMore(true)
+    setIsLoadingMore(false)
+    setIsAtBottom(true)
+  }, [context.type, context.id])
+
+  // Fetch messages
+  const fetchMessages = useCallback(async () => {
+    if (!context.enabled || !context.id) {
+      console.log('[useUnifiedMessages] Skip Fetch:', {
+        enabled: context.enabled,
+        contextId: context.id,
+        timestamp: new Date().toISOString()
+      })
+      return
+    }
+
+    console.log('[useUnifiedMessages] Fetch Start:', {
+      contextType: context.type,
+      contextId: context.id,
+      timestamp: new Date().toISOString()
+    })
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const query = supabase
+        .from('messages')
+        .select(MESSAGE_SELECT)
+
+      // Add filters based on context type
+      if (context.type === 'thread') {
+        query.eq('parent_message_id', context.id)
+      } else {
+        query
+          .eq(context.type === 'channel' ? 'channel_id' : 'conversation_id', context.id)
+          .is('parent_message_id', null)
+          .is(context.type === 'channel' ? 'conversation_id' : 'channel_id', null)
+      }
+
+      // Add ordering and limit
+      query
+        .order('created_at', { ascending: false })
+        .limit(MESSAGES_PER_PAGE)
+
+      const { data, error } = await query
+
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        setMessages([])
+        setHasMore(false)
+        setCursor(null)
+        return
+      }
+
+      const validMessages = (data as DbJoinedMessage[])
+        .map(msg => DataTransformer.toMessage(msg))
+        .filter((msg): msg is Message => msg !== null)
+        .reverse()
+
+      console.log('[useUnifiedMessages] Fetch Complete:', {
+        contextType: context.type,
+        contextId: context.id,
+        messageCount: validMessages.length,
+        timestamp: new Date().toISOString()
+      })
+
+      setMessages(validMessages)
+      setHasMore(validMessages.length === MESSAGES_PER_PAGE)
+      setCursor(data[data.length - 1].created_at)
+    } catch (err) {
+      console.error('Error in fetchMessages:', err)
+      setError(err as Error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [context.enabled, context.id, context.type, supabase])
+
+  // Load initial messages
+  useEffect(() => {
+    if (context.enabled) {
+      fetchMessages()
+    }
+  }, [context.enabled, fetchMessages])
+
+  // Set up message subscriptions
+  useEffect(() => {
+    if (!context.enabled || !context.id) {
+      console.log('[useUnifiedMessages] Skip Subscription:', {
+        enabled: context.enabled,
+        contextId: context.id,
+        timestamp: new Date().toISOString()
+      })
+      return
+    }
+
+    console.log('[useUnifiedMessages] Subscribe:', {
+      contextType: context.type,
+      contextId: context.id,
+      timestamp: new Date().toISOString()
+    })
+
+    // Set up real-time subscription
+    const messageChannel = supabase
+      .channel(`messages:${context.id}`)
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: context.type === 'thread' 
+            ? `parent_message_id=eq.${context.id}` 
+            : `channel_id=eq.${context.id} and parent_message_id is null`
+        },
+        async (payload) => {
+          console.log('[useUnifiedMessages] Message Event:', {
+            eventType: payload.eventType,
+            contextType: context.type,
+            contextId: context.id,
+            timestamp: new Date().toISOString()
+          })
+
+          if (payload.eventType === 'INSERT') {
+            // Fetch the complete message
+            const { data: messageData } = await supabase
+              .from('messages')
+              .select(MESSAGE_SELECT)
+              .eq('id', payload.new.id)
+              .single()
+
+            if (messageData) {
+              const transformedMessage = DataTransformer.toMessage(messageData as DbJoinedMessage)
+              if (transformedMessage) {
+                setMessages(prev => {
+                  // Check if message already exists
+                  if (prev.some(m => m.id === transformedMessage.id)) {
+                    return prev
+                  }
+                  return [...prev, transformedMessage]
+                })
+              }
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      console.log('[useUnifiedMessages] Unsubscribe:', {
+        contextType: context.type,
+        contextId: context.id,
+        timestamp: new Date().toISOString()
+      })
+      messageChannel.unsubscribe()
+    }
+  }, [context.enabled, context.id, context.type, supabase])
 
   // Function to check if scroll position is at bottom
   const checkIsAtBottom = useCallback((container: HTMLElement) => {
@@ -79,118 +260,6 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
       })
     }
   }, [checkIsAtBottom, scrollToBottom])
-
-  // Fetch messages
-  const fetchMessages = useCallback(async () => {
-    if (!context.id) {
-      console.log('No context.id provided, skipping fetch')
-      setMessages([])
-      setIsLoading(false)
-      setCursor(null)
-      setHasMore(false)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      console.log('Building fetch query for context:', {
-        type: context.type,
-        id: context.id
-      })
-
-      const query = supabase
-        .from('messages')
-        .select(MESSAGE_SELECT)
-
-      // Add filters based on context type
-      if (context.type === 'thread') {
-        query.eq('parent_message_id', context.id)
-      } else {
-        query
-          .eq(context.type === 'channel' ? 'channel_id' : 'conversation_id', context.id)
-          .is('parent_message_id', null)
-          .is(context.type === 'channel' ? 'conversation_id' : 'channel_id', null)
-      }
-
-      // Add ordering and limit
-      query
-        .order('created_at', { ascending: false })
-        .limit(MESSAGES_PER_PAGE)
-
-      console.log('Executing query with filters:', {
-        type: context.type,
-        id: context.id,
-        filters: context.type === 'thread' 
-          ? { parent_message_id: context.id }
-          : {
-              [context.type === 'channel' ? 'channel_id' : 'conversation_id']: context.id,
-              parent_message_id: null,
-              [context.type === 'channel' ? 'conversation_id' : 'channel_id']: null
-            }
-      })
-      const { data, error } = await query
-
-      console.log('Query results:', {
-        error,
-        dataLength: data?.length,
-        firstMessage: data?.[0],
-        rawData: data
-      })
-
-      if (error) throw error
-
-      if (!data || data.length === 0) {
-        console.log('No messages found')
-        setMessages([])
-        setHasMore(false)
-        setCursor(null)
-        return
-      }
-
-      const validMessages = (data as DbJoinedMessage[])
-        .map(msg => {
-          console.log('Processing message:', {
-            id: msg.id,
-            content: msg.content,
-            users: msg.users,
-            user_id: msg.user_id
-          })
-          return DataTransformer.toMessage(msg)
-        })
-        .filter((msg): msg is Message => {
-          if (!msg) {
-            console.log('Message was filtered out due to null')
-            return false
-          }
-          return true
-        })
-        .reverse()
-
-      console.log('Final transformed messages:', {
-        count: validMessages.length,
-        messages: validMessages.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-          user: {
-            id: msg.user.id,
-            username: msg.user.username,
-            fullName: msg.user.fullName
-          }
-        }))
-      })
-
-      setMessages(validMessages)
-      setHasMore(validMessages.length === MESSAGES_PER_PAGE)
-      setCursor(data[data.length - 1].created_at)
-    } catch (err) {
-      console.error('Error in fetchMessages:', err)
-      setError(err as Error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [context.id, context.type, supabase])
 
   // Load more messages
   const loadMore = async () => {
@@ -246,7 +315,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
 
   // Send a message
   const sendMessage = async (content: string, file: FileMetadata | null = null) => {
-    if (!user || !content.trim()) return
+    if (!user || !content.trim() || !context.id) return
 
     try {
       const messageParams = {
@@ -281,171 +350,91 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
     }
   }
 
-  // Load initial messages
-  useEffect(() => {
-    fetchMessages()
-  }, [fetchMessages])
+  // Function to fetch messages around a specific message
+  const fetchMessagesAroundId = async (messageId: string) => {
+    if (!context.id) return null;
 
-  // Set up real-time subscriptions
-  useEffect(() => {
-    if (!context.id) return
+    try {
+      // First, fetch the target message to get its timestamp
+      const { data: targetMessage, error: targetError } = await supabase
+        .from('messages')
+        .select('created_at')
+        .eq('id', messageId)
+        .single();
 
-    // Filter for new messages in current context
-    const insertFilter = (() => {
-      switch (context.type) {
-        case 'channel':
-          return `channel_id=eq.${context.id}`
-        case 'dm':
-          return `conversation_id=eq.${context.id}`
-        case 'thread':
-          return `parent_message_id=eq.${context.id}`
-        default:
-          return null
+      if (targetError) throw targetError;
+      if (!targetMessage) return null;
+
+      // Then fetch messages around that timestamp
+      const query = supabase
+        .from('messages')
+        .select(MESSAGE_SELECT);
+
+      // Add filters based on context type
+      if (context.type === 'thread') {
+        query.eq('parent_message_id', context.id);
+      } else {
+        query
+          .eq(context.type === 'channel' ? 'channel_id' : 'conversation_id', context.id)
+          .is('parent_message_id', null)
+          .is(context.type === 'channel' ? 'conversation_id' : 'channel_id', null);
       }
-    })()
 
-    // Filter for updates to any message in current channel/DM
-    const updateFilter = (() => {
-      switch (context.type) {
-        case 'channel':
-          return `channel_id=eq.${context.id}`
-        case 'dm':
-          return `conversation_id=eq.${context.id}`
-        case 'thread':
-          // In thread view, we only care about updates to replies
-          return `parent_message_id=eq.${context.id}`
-        default:
-          return null
-      }
-    })()
+      // Fetch messages around the target timestamp
+      const { data, error } = await query
+        .or(`created_at.gte.${targetMessage.created_at},created_at.lte.${targetMessage.created_at}`)
+        .order('created_at', { ascending: false })
+        .limit(MESSAGES_PER_PAGE);
 
-    if (!insertFilter || !updateFilter) return
+      if (error) throw error;
 
-    // Message subscription
-    const messageChannel = supabase
-      .channel(`messages:${context.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: insertFilter
-        },
-        async (payload) => {
-          if (!payload.new?.id) return
-
-          // Ignore messages we sent ourselves (we already have them from optimistic update)
-          if (payload.new.user_id === user?.id) return
-
-          const { data: messageData } = await supabase
-            .from('messages')
-            .select(MESSAGE_SELECT)
-            .eq('id', payload.new.id)
-            .single()
-
-          if (messageData) {
-            const transformedMessage = DataTransformer.toMessage(messageData as DbJoinedMessage)
-            if (transformedMessage) {
-              // Only add the message if it belongs in the current context
-              const belongsInContext = context.type === 'thread' 
-                ? transformedMessage.parentMessageId === context.id
-                : (context.type === 'channel' 
-                    ? transformedMessage.channelId === context.id && !transformedMessage.parentMessageId
-                    : transformedMessage.conversationId === context.id && !transformedMessage.parentMessageId)
-
-              if (belongsInContext) {
-                setMessages(prev => [...prev, transformedMessage])
-              }
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: updateFilter
-        },
-        async (payload) => {
-          console.log('Received UPDATE event:', {
-            payload,
-            filter: updateFilter,
-            contextType: context.type,
-            contextId: context.id
-          })
-
-          if (!payload.new?.id) return
-
-          // For thread replies, we only care about updates to messages in the thread
-          if (context.type === 'thread' && payload.new.parent_message_id !== context.id) {
-              return
-            }
-
-          // For channel/DM views, we want to catch all message updates including thread metadata
-          const { data: messageData } = await supabase
-              .from('messages')
-            .select(MESSAGE_SELECT)
-            .eq('id', payload.new.id)
-              .single()
-
-          console.log('Fetched updated message:', messageData)
-
-          if (messageData) {
-            const transformedMessage = DataTransformer.toMessage(messageData as DbJoinedMessage)
-            console.log('Transformed message:', transformedMessage)
-            
-            if (transformedMessage) {
-              setMessages(prev => {
-                const messageIndex = prev.findIndex(msg => msg.id === transformedMessage.id)
-                console.log('Updating messages:', {
-                  messageId: transformedMessage.id,
-                  foundAtIndex: messageIndex,
-                  currentMessages: prev.length
-                })
-
-                // Message exists in our current view
-                if (messageIndex !== -1) {
-                  const newMessages = [...prev]
-                  newMessages[messageIndex] = transformedMessage
-                  return newMessages
-                }
-
-                // Message doesn't exist in our view but should be included
-                const belongsInContext = context.type === 'thread'
-                  ? transformedMessage.parentMessageId === context.id
-                  : (context.type === 'channel'
-                    ? transformedMessage.channelId === context.id && !transformedMessage.parentMessageId
-                    : transformedMessage.conversationId === context.id && !transformedMessage.parentMessageId)
-
-                if (belongsInContext) {
-                  // Add the message in the correct position based on timestamp
-                  const newMessages = [...prev]
-                  const insertIndex = newMessages.findIndex(msg => 
-                    new Date(msg.createdAt) < new Date(transformedMessage.createdAt)
-                  )
-                  if (insertIndex === -1) {
-                    newMessages.push(transformedMessage)
-                  } else {
-                    newMessages.splice(insertIndex, 0, transformedMessage)
-                  }
-                  return newMessages
-                }
-
-                return prev
-              })
-            }
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      messageChannel.unsubscribe()
+      return data as DbJoinedMessage[];
+    } catch (err) {
+      console.error('Error fetching messages around ID:', err);
+      return null;
     }
-  }, [context.id, context.type, supabase])
+  };
+
+  // Function to jump to a specific message
+  const jumpToMessage = async (messageId: string, container: HTMLElement) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const messagesData = await fetchMessagesAroundId(messageId);
+      if (!messagesData) {
+        throw new Error('Failed to fetch messages');
+      }
+
+      const validMessages = messagesData
+        .map(msg => DataTransformer.toMessage(msg))
+        .filter((msg): msg is Message => msg !== null)
+        .reverse();
+
+      setMessages(validMessages);
+      setHasMore(validMessages.length === MESSAGES_PER_PAGE);
+      setCursor(messagesData[messagesData.length - 1].created_at);
+
+      // Wait for the messages to render
+      requestAnimationFrame(() => {
+        // Find the target message element
+        const messageElement = container.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Highlight the message temporarily
+          messageElement.classList.add('bg-blue-50');
+          setTimeout(() => {
+            messageElement.classList.remove('bg-blue-50');
+          }, 2000);
+        }
+      });
+    } catch (err) {
+      console.error('Error jumping to message:', err);
+      setError(err as Error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return {
     messages,
@@ -458,6 +447,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
     loadMore,
     checkIsAtBottom,
     scrollToBottom,
-    handleMessagesChange
+    handleMessagesChange,
+    jumpToMessage
   }
 } 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import type { Channel } from '@/types/models'
 
@@ -24,6 +24,7 @@ export function useChannels(): UseChannelsReturn {
   const [error, setError] = useState<Error | null>(null)
 
   const fetchChannels = async () => {
+    console.log('Fetching channels...');
     try {
       const { data, error } = await supabase
         .from('channels')
@@ -31,6 +32,11 @@ export function useChannels(): UseChannelsReturn {
         .order('name')
 
       if (error) throw error
+
+      console.log('Channels fetched:', {
+        count: data.length,
+        channels: data.map(c => c.name)
+      });
 
       setChannels(data.map(channel => ({
         id: channel.id,
@@ -120,9 +126,21 @@ export function useChannels(): UseChannelsReturn {
     }
   }
 
-  const getChannelByName = (name: string): Channel | undefined => {
-    return channels.find(channel => channel.name === name)
-  }
+  const getChannelByName = useCallback((name: string): Channel | undefined => {
+    console.log('Looking up channel by name:', {
+      searchName: name,
+      availableChannels: channels?.length ?? 0,
+      isLoading
+    });
+    const channel = channels.find(channel => channel.name === name);
+    console.log('Channel lookup result:', {
+      found: !!channel,
+      channelId: channel?.id,
+      channelName: channel?.name,
+      channelDescription: channel?.description
+    });
+    return channel;
+  }, [channels, isLoading]);
 
   const refreshChannels = async (): Promise<void> => {
     await fetchChannels()

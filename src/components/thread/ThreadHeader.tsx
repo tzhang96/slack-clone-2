@@ -10,7 +10,7 @@ interface ThreadHeaderProps {
 
 export function ThreadHeader({ parentMessage, onClose }: ThreadHeaderProps) {
   return (
-    <div className="border-b p-4">
+    <div className="border-b p-4 bg-white">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">Thread</h2>
         <button

@@ -1,72 +1,68 @@
-import { format } from 'date-fns';
-import { MessageSquare, Hash, Users } from 'lucide-react';
-import Link from 'next/link';
-import { DbMessage } from '@/types/database';
-
-interface SearchResult extends DbMessage {
-  ts_rank: number;
-  context_name: string;
-  context_type: 'channel' | 'dm';
-}
+import { Hash, Users, MessageSquare } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { type SearchResult } from '@/hooks/useMessageSearch';
 
 interface SearchResultsProps {
   results: SearchResult[];
   isLoading: boolean;
-  onResultClick: (messageId: string) => void;
+  onResultClick: (result: SearchResult) => void;
 }
 
-export const SearchResults = ({ results, isLoading, onResultClick }: SearchResultsProps) => {
+export function SearchResults({ results, isLoading, onResultClick }: SearchResultsProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
       </div>
     );
   }
 
   if (results.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-gray-500">
-        <MessageSquare className="h-12 w-12 mb-2" />
-        <p>No messages found</p>
+      <div className="p-4 text-center text-gray-500">
+        No results found
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col divide-y divide-gray-200 dark:divide-gray-700">
-      {results.map((message) => (
+    <div className="divide-y">
+      {results.map(message => (
         <button
           key={message.id}
-          onClick={() => onResultClick(message.id)}
-          className="flex flex-col p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+          onClick={() => onResultClick(message)}
+          className="flex flex-col w-full p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
         >
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <span>{format(new Date(message.created_at), 'MMM d, yyyy h:mm a')}</span>
-            <span>•</span>
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
             {message.context_type === 'channel' ? (
-              <Link
-                href={`/channels/${message.channel_id}`}
-                className="flex items-center gap-1 hover:text-blue-500 hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Hash className="h-3.5 w-3.5" />
-                {message.context_name}
-              </Link>
+              <>
+                <Hash className="h-4 w-4" />
+                <span>{message.context_name}</span>
+              </>
+            ) : message.context_type === 'dm' ? (
+              <>
+                <Users className="h-4 w-4" />
+                <span>{message.context_name}</span>
+              </>
             ) : (
-              <Link
-                href={`/dm/${message.conversation_id}`}
-                className="flex items-center gap-1 hover:text-blue-500 hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Users className="h-3.5 w-3.5" />
-                {message.context_name}
-              </Link>
+              <>
+                <MessageSquare className="h-4 w-4" />
+                <span>Thread in {message.context_name}</span>
+              </>
             )}
+            <span className="mx-2">•</span>
+            <span>{formatDistanceToNow(new Date(message.created_at))} ago</span>
           </div>
-          <p className="mt-1 text-gray-900 dark:text-gray-100">{message.content}</p>
+          <div className="text-sm text-gray-900 dark:text-gray-100">
+            {message.content}
+          </div>
+          {message.is_thread_parent && (
+            <div className="text-xs text-gray-500 mt-1">
+              {message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}
+            </div>
+          )}
         </button>
       ))}
     </div>
   );
-}; 
+} 

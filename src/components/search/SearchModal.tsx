@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SearchBar } from './SearchBar';
 import { SearchResults } from './SearchResults';
-import { useMessageSearch } from '@/hooks/useMessageSearch';
+import { useMessageSearch, type SearchResult } from '@/hooks/useMessageSearch';
+import { useUnifiedMessages } from '@/hooks/useUnifiedMessages';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -36,11 +37,30 @@ export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
     search(query);
   }, [search]);
 
-  const handleResultClick = useCallback((messageId: string) => {
+  const handleResultClick = useCallback((result: SearchResult) => {
     // Keep the search results when closing the modal via result click
     setShouldPersist(true);
     onClose();
-  }, [onClose]);
+
+    // Navigate to the appropriate context
+    let path;
+    if (result.context_type === 'thread') {
+      // For thread messages, navigate to the parent message's channel
+      path = result.channel_id 
+        ? `/chat/${result.channel_name}` 
+        : `/dm/${result.conversation_id}`;
+    } else {
+      path = result.context_type === 'channel' 
+        ? `/chat/${result.channel_name}`
+        : `/dm/${result.conversation_id}`;
+    }
+
+    // Add message ID as a URL hash for jumping
+    // For thread messages, jump to the parent message and add a thread parameter
+    const hash = `message-${result.parent_message_id || result.id}`;
+    const threadParam = result.context_type === 'thread' ? '?thread=true' : '';
+    router.push(`${path}${threadParam}#${hash}`);
+  }, [onClose, router]);
 
   if (!isOpen) return null;
 

@@ -1,18 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { MessageList } from '@/components/chat/MessageList'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
-import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
 import { Message } from '@/types/chat'
 import { FileMetadata } from '@/hooks/useFileUpload'
 
 interface DMChatProps {
   conversationId: string
+  activeThread: Message | null
+  onThreadClick: (message: Message) => void
+  onCloseThread: () => void
 }
 
-export function DMChat({ conversationId }: DMChatProps) {
+export function DMChat({ 
+  conversationId, 
+  activeThread,
+  onThreadClick,
+  onCloseThread 
+}: DMChatProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [activeThread, setActiveThread] = useState<Message | null>(null)
 
   const {
     messages,
@@ -25,50 +31,29 @@ export function DMChat({ conversationId }: DMChatProps) {
     handleMessagesChange,
     isAtBottom,
     checkIsAtBottom,
-    scrollToBottom
+    scrollToBottom,
   } = useUnifiedMessages({
     type: 'dm',
-    id: conversationId
+    id: conversationId,
+    enabled: !!conversationId
   })
-
-  useEffect(() => {
-    console.log('DMChat messages:', messages)
-  }, [messages])
 
   // Handle message changes and scrolling
   useEffect(() => {
-    if (!conversationId) {
-      console.log('No conversation ID, skipping message changes')
-      return
-    }
-    console.log('Handling message changes:', {
-      containerRef: !!containerRef.current,
-      messageCount: messages.length
-    })
+    if (!conversationId) return;
     handleMessagesChange(containerRef.current, messages)
   }, [messages, handleMessagesChange, conversationId])
 
-  const handleSendMessage = async (content: string, file: FileMetadata | null) => {
+  const handleSendMessage = async (content: string, file: FileMetadata | null = null) => {
     try {
-      console.log('Sending message in DMChat:', { content, file })
       await sendMessage(content, file)
       // Scroll to bottom after sending
       if (containerRef.current) {
         scrollToBottom(containerRef.current, true)
       }
     } catch (error) {
-      console.error('Error sending message in DMChat:', error)
+      console.error('Error sending message:', error)
     }
-  }
-
-  const handleThreadClick = (message: Message) => {
-    console.log('Opening thread for message:', message)
-    setActiveThread(message)
-  }
-
-  const handleCloseThread = () => {
-    console.log('Closing thread')
-    setActiveThread(null)
   }
 
   if (isLoading) {
@@ -80,8 +65,8 @@ export function DMChat({ conversationId }: DMChatProps) {
   }
 
   return (
-    <div className="flex h-full">
-      <div className={`flex-1 flex flex-col ${activeThread ? 'lg:mr-[400px]' : ''}`}>
+    <div className="flex h-full w-full">
+      <div className="flex-1 flex flex-col">
         <div className="flex-1 min-h-0 flex flex-col relative" ref={containerRef}>
           <div className="absolute inset-0 flex flex-col">
             <div className="flex-1 min-h-0">
@@ -92,7 +77,7 @@ export function DMChat({ conversationId }: DMChatProps) {
                 hasMore={hasMore}
                 onLoadMore={loadMore}
                 context="dm"
-                onThreadClick={handleThreadClick}
+                onThreadClick={onThreadClick}
               />
             </div>
             <div className="flex-shrink-0 bg-white border-t">
@@ -105,26 +90,6 @@ export function DMChat({ conversationId }: DMChatProps) {
           </div>
         </div>
       </div>
-
-      {/* Thread Sidebar */}
-      {activeThread && (
-        <div className="hidden lg:block fixed top-0 right-0 bottom-0 w-[400px] border-l">
-          <ThreadSidebar
-            parentMessage={activeThread}
-            onClose={handleCloseThread}
-          />
-        </div>
-      )}
-
-      {/* Mobile Thread View */}
-      {activeThread && (
-        <div className="lg:hidden fixed inset-0 bg-white z-50">
-          <ThreadSidebar
-            parentMessage={activeThread}
-            onClose={handleCloseThread}
-          />
-        </div>
-      )}
     </div>
   )
 } 
