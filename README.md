@@ -7,6 +7,8 @@ A real-time chat application focusing on simplicity and reliability.
 - Node.js 16.8 or later
 - npm 7 or later
 - A Supabase account
+- OpenAI API key
+- Pinecone account
 
 ## Setup
 
@@ -24,8 +26,15 @@ npm install
 3. Set up environment variables:
 Create a `.env.local` file in the root directory with the following variables:
 ```
+# Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+# AI Search Configuration
+OPENAI_API_KEY=your-openai-api-key
+PINECONE_API_KEY=your-pinecone-api-key
+PINECONE_ENVIRONMENT=your-pinecone-environment  # e.g., us-east-1
+PINECONE_INDEX_NAME=your-pinecone-index-name   # e.g., messages-from-db
 ```
 
 4. Set up the database:
@@ -121,9 +130,10 @@ import { Button } from '@/components/shared/Button'
 - [x] User presence/status
 - [x] Virtualized message list
 - [x] Automatic offline detection
-- [ ] Message reactions
-- [ ] Direct messages
-- [ ] File attachments
+- [x] AI-powered semantic message search
+- [x] Message reactions
+- [x] Direct messages
+- [x] File attachments
 
 ## Development
 
