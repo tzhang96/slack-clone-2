@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { initializeData } from '@/lib/init-data'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { debounce } from '@/lib/utils'
+import { debounce } from 'lodash-es'
 
 interface PresenceContextType {
   status: UserStatus
@@ -17,6 +17,9 @@ interface PresenceContextType {
 }
 
 const PresenceContext = createContext<PresenceContextType | undefined>(undefined)
+
+type Status = 'online' | 'away';
+type UpdateStatusFn = (status: Status) => void;
 
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const { status, updateStatus: hookUpdateStatus, error } = usePresence()
@@ -35,13 +38,13 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
   // Create separate debounced functions for online and away status
   const debouncedSetOnline = useCallback(
-    debounce(() => updateStatus('online'), 1000, true), // Immediate for better responsiveness
-    [user]
+    debounce((updateStatus: UpdateStatusFn) => updateStatus('online'), 1000, { leading: true }),
+    [updateStatus]
   )
 
   const debouncedSetAway = useCallback(
-    debounce(() => updateStatus('away'), 3000, false), // Delayed to prevent flickering
-    [user]
+    debounce((updateStatus: UpdateStatusFn) => updateStatus('away'), 3000, { leading: false }),
+    [updateStatus]
   )
 
   // Set initial online status when user logs in
@@ -59,22 +62,22 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     const handleVisibilityChange = () => {
       if (!loading) {
         if (document.hidden) {
-          debouncedSetAway()
+          debouncedSetAway(updateStatus)
         } else {
-          debouncedSetOnline()
+          debouncedSetOnline(updateStatus)
         }
       }
     }
 
     const handleFocus = () => {
       if (!loading) {
-        debouncedSetOnline()
+        debouncedSetOnline(updateStatus)
       }
     }
 
     const handleBlur = () => {
       if (!loading) {
-        debouncedSetAway()
+        debouncedSetAway(updateStatus)
       }
     }
 
@@ -85,7 +88,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
     // Set initial status based on visibility
     if (!loading && document.hidden) {
-      debouncedSetAway()
+      debouncedSetAway(updateStatus)
     }
 
     // Cleanup

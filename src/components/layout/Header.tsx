@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
-import { LogOut, Search } from 'lucide-react'
+import { LogOut, Search, Sparkles } from 'lucide-react'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { SearchModal } from '@/components/search/SearchModal'
+import { AISearchModal } from '@/components/search/AISearchModal'
 
 export function Header() {
   const { user, signOut } = useAuth()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isAISearchOpen, setIsAISearchOpen] = useState(false)
 
   const handleLogout = async () => {
     try {
@@ -37,6 +39,15 @@ export function Header() {
           >
             <Search size={20} />
           </button>
+
+          <button
+            onClick={() => setIsAISearchOpen(true)}
+            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors flex items-center gap-1"
+            aria-label="AI Search"
+          >
+            <Sparkles size={20} />
+            <span className="text-sm">AI Search</span>
+          </button>
           
           <div className="flex items-center gap-2">
             <UserAvatar 
@@ -60,6 +71,11 @@ export function Header() {
       <SearchModal 
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+      />
+
+      <AISearchModal
+        isOpen={isAISearchOpen}
+        onClose={() => setIsAISearchOpen(false)}
       />
     </>
   )
