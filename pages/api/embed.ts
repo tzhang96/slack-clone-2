@@ -26,6 +26,21 @@ const supabase = createClient(
   SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+// Add type definitions for OpenAI API response
+interface OpenAIEmbeddingResponse {
+  data: {
+    embedding: number[];
+    index: number;
+    object: string;
+  }[];
+  model: string;
+  object: string;
+  usage: {
+    prompt_tokens: number;
+    total_tokens: number;
+  };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // If you only want to allow POST to this route:
@@ -73,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(`OpenAI API Error: ${await openAiResponse.text()}`);
     }
 
-    const embeddingData = await openAiResponse.json();
+    const embeddingData = await openAiResponse.json() as OpenAIEmbeddingResponse;
     if (!embeddingData.data) {
       throw new Error('OpenAI embedding response is missing the data field.');
     }
