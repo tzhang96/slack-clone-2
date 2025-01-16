@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -18,6 +19,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 
 export function LoginForm() {
   const { signIn } = useAuth()
+  const { supabase } = useSupabase()
   const [error, setError] = useState('')
   const router = useRouter()
   
@@ -33,7 +35,28 @@ export function LoginForm() {
     try {
       setError('')
       await signIn(data.email, data.password)
-      router.push('/chat')
+      
+      // Wait for auth state to be updated
+      const maxAttempts = 10
+      const interval = 200 // 200ms between checks
+      let attempts = 0
+
+      const checkAuthAndRedirect = async () => {
+        if (attempts >= maxAttempts) {
+          setError('Login successful but failed to redirect. Please try refreshing the page.')
+          return
+        }
+
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          router.push('/chat')
+        } else {
+          attempts++
+          setTimeout(checkAuthAndRedirect, interval)
+        }
+      }
+
+      await checkAuthAndRedirect()
     } catch (err) {
       setError('Invalid email or password')
     }

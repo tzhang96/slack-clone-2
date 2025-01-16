@@ -2,19 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { MessageList } from '@/components/chat/MessageList'
+import { MessageListWithError } from '@/components/chat/MessageListError'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 import { useChannelContext } from '@/components/providers/ChannelProvider'
 import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
 import { Message } from '@/types/chat'
 import { FileMetadata } from '@/hooks/useFileUpload'
-
-const LoadingSpinner = () => (
-  <div className="flex items-center justify-center h-full">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-  </div>
-)
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
+import { LoadingState } from '@/components/shared/LoadingSpinner'
+import { ChannelPageSkeleton } from '@/components/chat/ChannelPageSkeleton'
 
 interface ChannelPageProps {
   params: {
@@ -22,20 +19,10 @@ interface ChannelPageProps {
   }
 }
 
-export default function ChannelPage({ params }: ChannelPageProps) {
+function ChannelPageContent({ params }: ChannelPageProps) {
   const router = useRouter()
   const { getChannelByName, isLoading: isLoadingChannel } = useChannelContext()
   const channel = getChannelByName(params.channelId)
-
-  // Log component mount and channel state
-  useEffect(() => {
-    console.log('[ChannelPage] Mount/Channel Update:', {
-      channelId: params.channelId,
-      channelFound: !!channel,
-      isLoadingChannel
-    })
-  }, [params.channelId, channel, isLoadingChannel])
-
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeThread, setActiveThread] = useState<Message | null>(null)
 
@@ -66,13 +53,6 @@ export default function ChannelPage({ params }: ChannelPageProps) {
     const searchParams = new URLSearchParams(window.location.search);
     const shouldOpenThread = searchParams.get('thread') === 'true';
     const messageId = window.location.hash.replace('#message-', '');
-    
-    console.log('[ChannelPage] URL/Thread State:', {
-      messageId,
-      shouldOpenThread,
-      hasActiveThread: !!activeThread,
-      timestamp: new Date().toISOString()
-    })
 
     // If there's no thread parameter, ensure thread is closed
     if (!shouldOpenThread && activeThread) {
@@ -104,14 +84,6 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   // Handle message changes and scrolling
   useEffect(() => {
     if (!channel?.id) return;
-    
-    console.log('[ChannelPage] Message State Update:', {
-      channelId: channel.id,
-      messageCount: messages.length,
-      isAtBottom,
-      timestamp: new Date().toISOString()
-    })
-    
     handleMessagesChange(containerRef.current, messages)
   }, [messages, handleMessagesChange, channel?.id, isAtBottom])
 
@@ -128,7 +100,6 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   }
 
   const handleThreadClick = (message: Message) => {
-    // Update URL first to trigger the effect
     router.replace(`/chat/${params.channelId}?thread=true#message-${message.id}`);
   }
 
@@ -137,7 +108,7 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   }, [router, params.channelId]);
 
   if (isLoadingChannel) {
-    return <LoadingSpinner />
+    return <ChannelPageSkeleton />
   }
 
   if (!channel) {
@@ -155,7 +126,7 @@ export default function ChannelPage({ params }: ChannelPageProps) {
         <div className="flex-1 min-h-0 flex flex-col relative" ref={containerRef}>
           <div className="absolute inset-0 flex flex-col">
             <div className="flex-1 min-h-0">
-              <MessageList
+              <MessageListWithError
                 messages={messages}
                 isLoading={isLoadingMessages}
                 isLoadingMore={isLoadingMore}
@@ -179,12 +150,41 @@ export default function ChannelPage({ params }: ChannelPageProps) {
       {/* Thread Sidebar - Responsive */}
       {activeThread && (
         <div className="fixed inset-0 bg-white z-50 lg:w-[--thread-width] lg:right-0 lg:left-auto lg:border-l lg:top-[--header-height]">
-          <ThreadSidebar
-            parentMessage={activeThread}
-            onClose={handleCloseThread}
-          />
+          <ErrorBoundary
+            fallback={
+              <div className="p-4 text-red-600">
+                Failed to load thread. Please try closing and reopening it.
+              </div>
+            }
+          >
+            <ThreadSidebar
+              parentMessage={activeThread}
+              onClose={handleCloseThread}
+            />
+          </ErrorBoundary>
         </div>
       )}
     </div>
+  )
+}
+
+export default function ChannelPage(props: ChannelPageProps) {
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-red-600 mb-2">
+              Failed to load channel
+            </h3>
+            <p className="text-sm text-gray-600">
+              There was an error loading this channel. Please try refreshing the page.
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <ChannelPageContent {...props} />
+    </ErrorBoundary>
   )
 } 

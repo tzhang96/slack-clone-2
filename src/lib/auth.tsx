@@ -2,9 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/ssr'
-import type { Database } from '@/types/supabase'
+import { useRouter, usePathname } from 'next/navigation'
+import { supabase } from './supabase'
 
 interface AuthContextType {
   user: User | null
@@ -16,21 +15,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const PUBLIC_ROUTES = ['/login', '/signup']
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-
-  const supabase = createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const pathname = usePathname() || ''
 
   useEffect(() => {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)
+
+      // Redirect based on auth state
+      if (!session && !PUBLIC_ROUTES.includes(pathname)) {
+        router.replace('/login')
+      } else if (session && PUBLIC_ROUTES.includes(pathname)) {
+        router.replace('/chat')
+      }
     })
 
     // Listen for changes on auth state
@@ -38,11 +42,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
+      
+      // Redirect based on auth state change
+      if (!session && !PUBLIC_ROUTES.includes(pathname)) {
+        router.replace('/login')
+      } else if (session && PUBLIC_ROUTES.includes(pathname)) {
+        router.replace('/chat')
+      }
+      
       router.refresh()
     })
 
     return () => subscription.unsubscribe()
-  }, [router, supabase])
+  }, [pathname, router])
 
   const signUp = async (email: string, password: string, username: string, fullName: string) => {
     try {
@@ -115,18 +127,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    if (user) {
-      // Set status to offline before signing out
-      await supabase
-        .from('users')
-        .update({ 
-          status: 'offline',
-          last_seen: new Date().toISOString()
-        })
-        .eq('id', user.id)
+    try {
+      if (user) {
+        // Set status to offline before signing out
+        await supabase
+          .from('users')
+          .update({ 
+            status: 'offline',
+            last_seen: new Date().toISOString()
+          })
+          .eq('id', user.id)
+      }
+
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+
+      // Clear any local state
+      setUser(null)
+      
+      // Force a router refresh and redirect
+      router.refresh()
+      router.replace('/login')
+    } catch (error) {
+      console.error('Error signing out:', error)
+      throw error
     }
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+  }
+
+  // Don't render children until initial session is checked
+  if (loading) {
+    return null
   }
 
   return (

@@ -1,27 +1,11 @@
 import { ReactionWithUser } from './supabase'
-import { File, ThreadParticipant } from './models'
+import { File, ThreadParticipant, Message } from './models'
+import { FileMetadata } from '@/hooks/useFileUpload'
 
-export interface Message {
-  id: string
-  content: string
-  createdAt: string
-  channelId: string | null
-  conversationId: string | null
-  parentMessageId: string | null
-  replyCount: number
-  latestReplyAt: string | null
-  isThreadParent: boolean
-  user: {
-    id: string
-    username: string
-    fullName: string
-    lastSeen: string | null
-    status: string | null
-  }
-  reactions: ReactionWithUser[]
-  file: File | null
-  threadParticipants: ThreadParticipant[] | null
-}
+export type MessageContext = 'channel' | 'dm' | 'thread'
+
+// Re-export Message type from models
+export type { Message } from './models'
 
 export interface MessageRowData {
   messages: Message[]

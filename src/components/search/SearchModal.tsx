@@ -44,21 +44,21 @@ export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
 
     // Navigate to the appropriate context
     let path;
-    if (result.context_type === 'thread') {
+    if (result.contextType === 'thread') {
       // For thread messages, navigate to the parent message's channel
-      path = result.channel_id 
-        ? `/chat/${result.channel_name}` 
-        : `/dm/${result.conversation_id}`;
+      path = result.channelId
+        ? `/chat/${result.channelName}`
+        : `/dm/${result.conversationId}`;
+    } else if (result.contextType === 'channel') {
+      path = `/chat/${result.channelName}`;
     } else {
-      path = result.context_type === 'channel' 
-        ? `/chat/${result.channel_name}`
-        : `/dm/${result.conversation_id}`;
+      path = `/dm/${result.conversationId}`;
     }
 
     // Add message ID as a URL hash for jumping
     // For thread messages, jump to the parent message and add a thread parameter
-    const hash = `message-${result.parent_message_id || result.id}`;
-    const threadParam = result.context_type === 'thread' ? '?thread=true' : '';
+    const hash = `message-${result.parentMessageId || result.id}`;
+    const threadParam = result.contextType === 'thread' ? '?thread=true' : '';
     router.push(`${path}${threadParam}#${hash}`);
   }, [onClose, router]);
 
@@ -99,11 +99,18 @@ export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
                 {error.message}
               </div>
             ) : (
-              <SearchResults
-                results={results}
-                isLoading={isLoading}
-                onResultClick={handleResultClick}
-              />
+              <div className="flex-1 overflow-y-auto">
+                {isLoading ? (
+                  <div className="flex items-center justify-center p-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+                  </div>
+                ) : (
+                  <SearchResults
+                    results={results}
+                    onResultClick={handleResultClick}
+                  />
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -36,6 +36,7 @@ export interface Message {
   id: string
   content: string
   createdAt: string
+  user_id: string
   channelId: string | null
   conversationId: string | null
   parentMessageId: string | null
@@ -52,15 +53,9 @@ export interface ThreadParticipant {
   id: string
   threadId: string
   userId: string
-  lastReadAt: string | null
+  lastReadAt: string
   createdAt: string
-  user: {
-    id: string
-    username: string
-    fullName: string
-    lastSeen: string | null
-    status: string | null
-  } | null
+  user: User | null
 }
 
 export interface Thread {

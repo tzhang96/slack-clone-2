@@ -11,14 +11,5 @@ if (!supabaseKey) {
   throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
 }
 
-// Ensure URL is properly formatted
-try {
-  new URL(supabaseUrl)
-} catch (error) {
-  throw new Error(`Invalid Supabase URL: ${supabaseUrl}`)
-}
-
-export const supabase = createBrowserClient<Database>(
-  supabaseUrl,
-  supabaseKey
-) 
+// Create a single supabase client for interacting with your database
+export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseKey) 
