@@ -63,7 +63,7 @@ export function CreateChannelModal({ isOpen, onClose }: CreateChannelModalProps)
               id="channelName"
               value={channelName}
               onChange={(e) => setChannelName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               placeholder="e.g. project-updates"
               disabled={isCreating}
             />
@@ -89,7 +89,7 @@ export function CreateChannelModal({ isOpen, onClose }: CreateChannelModalProps)
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               placeholder="What's this channel about?"
               disabled={isCreating}
             />

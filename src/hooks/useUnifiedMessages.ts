@@ -181,6 +181,13 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
     })
 
     // Set up real-time subscription
+    console.log('[useUnifiedMessages] Setting up subscription:', {
+      contextType: context.type,
+      contextId: context.id,
+      timestamp: new Date().toISOString()
+    })
+
+    // Set up real-time subscription
     const messageChannel = supabase
       .channel(`messages:${context.id}`)
       .on('postgres_changes',
@@ -188,30 +195,48 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
           event: '*',
           schema: 'public',
           table: 'messages',
-          filter: context.type === 'thread' 
-            ? `parent_message_id=eq.${context.id}` 
-            : `channel_id=eq.${context.id} and parent_message_id is null and conversation_id is null`
+          filter: `id.gt.0` // Subscribe to all messages, we'll filter client-side
         },
-        async (payload) => {
-          console.log('[useUnifiedMessages] Message Event:', {
-            eventType: payload.eventType,
+        async (payload: RealtimePostgresChangesPayload<{ [key: string]: any }>) => {
+          console.log('[useUnifiedMessages] Received message event:', {
+            payload,
             contextType: context.type,
-            contextId: context.id,
-            timestamp: new Date().toISOString()
+            contextId: context.id
           })
 
           if (payload.eventType === 'INSERT') {
-            // Skip if this is a thread message and we're in channel view
-            if (context.type === 'channel' && payload.new.parent_message_id) {
-              return;
+            const newMessage = payload.new
+
+            // Client-side filtering based on context
+            if (context.type === 'thread' && newMessage.parent_message_id !== context.id) {
+              return
+            }
+            if (context.type === 'channel' && (
+              newMessage.channel_id !== context.id ||
+              newMessage.parent_message_id !== null ||
+              newMessage.conversation_id !== null
+            )) {
+              return
+            }
+            if (context.type === 'dm' && (
+              newMessage.conversation_id !== context.id ||
+              newMessage.parent_message_id !== null
+            )) {
+              return
             }
 
             // Fetch the complete message
             const { data: messageData } = await supabase
               .from('messages')
               .select(MESSAGE_SELECT)
-              .eq('id', payload.new.id)
+              .eq('id', newMessage.id)
               .single()
+
+            console.log('[useUnifiedMessages] Fetched message data:', {
+              messageData,
+              contextType: context.type,
+              contextId: context.id
+            })
 
             if (messageData) {
               const transformedMessage = DataTransformer.toMessage(messageData as DbJoinedMessage)
@@ -221,6 +246,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
                   if (prev.some(m => m.id === transformedMessage.id)) {
                     return prev
                   }
+                  console.log('[useUnifiedMessages] Adding new message:', transformedMessage)
                   return [...prev, transformedMessage]
                 })
               }
@@ -228,7 +254,16 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
           }
         }
       )
-      .subscribe()
+
+    // Debug subscription status
+    messageChannel.subscribe((status) => {
+      console.log('[useUnifiedMessages] Subscription status:', {
+        status,
+        contextType: context.type,
+        contextId: context.id,
+        timestamp: new Date().toISOString()
+      })
+    })
 
     return () => {
       console.log('[useUnifiedMessages] Unsubscribe:', {
