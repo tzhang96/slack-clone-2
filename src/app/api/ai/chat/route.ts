@@ -2,9 +2,14 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { Pinecone } from '@pinecone-database/pinecone'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
+})
+
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY!
 })
 
 interface User {
@@ -79,31 +84,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Bot user not found' }, { status: 404 })
     }
 
-    // Get the bot owner's message history from both channels and DMs
-    const { data: ownerMessages, error: msgError } = await supabase
-      .from('messages')
-      .select(`
-        content,
-        created_at,
-        channel_id,
-        conversation_id
-      `)
-      .eq('user_id', botUser.bot_owner_id)
-      .order('created_at', { ascending: false })
-      .limit(100)
+    // Create embedding for user's message to find relevant context
+    const messageEmbedding = await openai.embeddings.create({
+      model: "text-embedding-3-large",
+      input: userMessage,
+      encoding_format: "float"
+    })
 
-    if (msgError) {
-      console.error('Message fetch error:', msgError)
-      return NextResponse.json({ error: 'Failed to fetch training data' }, { status: 500 })
-    }
+    // Query Pinecone for similar messages from the bot owner
+    const index = pinecone.Index("messages-from-db")
+    const searchResponse = await index.query({
+      vector: messageEmbedding.data[0].embedding,
+      topK: 5,
+      includeMetadata: true,
+      filter: {
+        user_id: { $eq: botUser.bot_owner_id }
+      }
+    })
 
-    // Create system prompt from owner's messages
-    const trainingData = ownerMessages
-      ?.map(m => m.content)
+    // Extract relevant messages for context
+    const relevantMessages = searchResponse.matches
+      .map(match => match.metadata?.content)
       .filter(Boolean)
-      .join('\n') || ''
+      .join('\n')
 
-    const systemPrompt = `You are an AI trained to respond like a specific user. Here are their recent messages to learn from:\n\n${trainingData}\n\nRespond to messages in a similar style and tone. Keep responses concise and natural. If you're not sure how to respond, use a casual, friendly tone.`
+    // Create system prompt with relevant context
+    const systemPrompt = `You are an AI trained to respond like a specific user. Here are some of their relevant messages that match the context of the current conversation:\n\n${relevantMessages}\n\nRespond to messages in a similar style and tone. Keep responses concise and natural. If you're not sure how to respond, use a casual, friendly tone.`
 
     console.log('Generating AI response with prompt:', { systemPrompt, userMessage })
 
