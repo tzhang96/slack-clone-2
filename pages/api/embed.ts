@@ -19,6 +19,13 @@ const {
   PINECONE_INDEX_NAME
 } = process.env;
 
+// 2. Create Supabase client
+// Use the service role key so we can read the entire table
+const supabase = createClient(
+  NEXT_PUBLIC_SUPABASE_URL || '',
+  SUPABASE_SERVICE_ROLE_KEY || ''
+);
+
 // Add type definitions for OpenAI API response
 interface OpenAIEmbeddingResponse {
   data: {
@@ -87,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(`OpenAI API Error: ${await openAiResponse.text()}`);
     }
 
-    const embeddingData = await openAiResponse.json() as OpenAIEmbeddingResponse;
+    const embeddingData = await openAiResponse.json();
     if (!embeddingData.data) {
       throw new Error('OpenAI embedding response is missing the data field.');
     }
