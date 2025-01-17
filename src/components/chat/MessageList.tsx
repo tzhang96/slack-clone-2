@@ -47,6 +47,7 @@ const MessageRow = memo(function MessageRow({ data, index, style }: ListChildCom
   const messageRef = useRef<HTMLDivElement>(null)
   const { toggleReaction, isLoading: isMutating } = useReactionMutations()
   const [imageLoaded, setImageLoaded] = useState(false)
+  const { loading: authLoading } = useAuth()
 
   const updateHeight = useCallback(() => {
     if (messageRef.current) {
@@ -109,7 +110,7 @@ const MessageRow = memo(function MessageRow({ data, index, style }: ListChildCom
                 </div>
               )}
               <div className="mt-0.5 flex items-center gap-2">
-                <MessageReactions messageId={message.id} />
+                {!authLoading && <MessageReactions messageId={message.id} />}
                 <div className="flex items-center gap-2">
                   {context !== 'thread' && (!message.replyCount || message.replyCount === 0) && (
                     <button
@@ -133,12 +134,14 @@ const MessageRow = memo(function MessageRow({ data, index, style }: ListChildCom
                       onClick={() => onThreadClick?.(message)}
                     />
                   ) : null}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <EmojiPicker
-                      onEmojiSelect={(emoji) => toggleReaction(message.id, emoji)}
-                      disabled={isMutating}
-                    />
-                  </div>
+                  {!authLoading && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <EmojiPicker
+                        onEmojiSelect={(emoji) => toggleReaction(message.id, emoji)}
+                        disabled={isMutating}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

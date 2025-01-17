@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { ChannelPageSkeleton } from '@/components/chat/ChannelPageSkeleton'
 import { ChannelChat, ChannelChatHandle } from '@/components/chat/ChannelChat'
 import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
+import { useAuth } from '@/lib/auth'
 
 interface ChannelPageProps {
   params: {
@@ -18,17 +19,31 @@ interface ChannelPageProps {
 
 function ChannelPageContent({ params }: ChannelPageProps) {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const { getChannelByName, isLoading: isLoadingChannel } = useChannelContext()
   const channel = getChannelByName(params.channelId)
   const [activeThread, setActiveThread] = useState<Message | null>(null)
   const chatRef = useRef<ChannelChatHandle>(null)
 
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login')
+    }
+  }, [authLoading, user, router])
+
+  // Don't initialize messages until we're sure about auth and channel
   const { messages } = useUnifiedMessages({
     type: 'channel',
     id: channel?.id,
     parentMessage: null,
-    enabled: !isLoadingChannel && !!channel
+    enabled: !authLoading && !isLoadingChannel && !!channel && !!user
   })
+
+  // Show loading state while checking auth
+  if (authLoading || !user) {
+    return <ChannelPageSkeleton />
+  }
 
   // Extract message ID from URL hash and thread parameter
   useEffect(() => {
@@ -131,9 +146,15 @@ export default function ChannelPage({ params }: ChannelPageProps) {
   return (
     <ErrorBoundary
       fallback={
-        <div className="p-4 text-red-500">
-          <h3 className="font-semibold mb-2">Error loading channel</h3>
-          <p className="text-sm">Please try refreshing the page</p>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-red-600 mb-2">
+              Something went wrong
+            </h3>
+            <p className="text-sm text-gray-600">
+              There was an error loading the page. Please try refreshing.
+            </p>
+          </div>
         </div>
       }
     >

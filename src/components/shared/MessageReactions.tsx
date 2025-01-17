@@ -1,6 +1,7 @@
 import { useReactions } from '@/hooks/useReactions'
 import { useReactionMutations } from '@/hooks/useReactionMutations'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
+import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import {
   Tooltip,
@@ -25,6 +26,11 @@ interface GroupedReaction {
 
 export function MessageReactions({ messageId, className }: MessageReactionsProps) {
   const { session } = useSupabase()
+  const { loading: authLoading } = useAuth()
+  
+  // Don't even try to fetch reactions if we're still checking auth
+  if (authLoading) return null;
+  
   const { groupedReactions, isLoading } = useReactions(messageId)
   const { toggleReaction, isLoading: isMutating, isAuthenticated } = useReactionMutations()
 

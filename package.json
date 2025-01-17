@@ -11,6 +11,7 @@
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
+    "@headlessui/react": "^2.2.0",
     "@hookform/resolvers": "^3.3.2",
     "@pinecone-database/pinecone": "^4.1.0",
     "@radix-ui/react-dialog": "^1.1.4",
