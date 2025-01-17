@@ -38,8 +38,7 @@ function ChannelPageContent({ params }: ChannelPageProps) {
     const shouldOpenThread = searchParams.get('thread') === 'true';
     const messageId = window.location.hash.replace('#message-', '');
 
-    // If there's no thread parameter, ensure thread is closed
-    if (!shouldOpenThread && activeThread) {
+    if (!shouldOpenThread) {
       setActiveThread(null);
       return;
     }
@@ -53,10 +52,10 @@ function ChannelPageContent({ params }: ChannelPageProps) {
 
     // Set active thread if needed
     const targetMessage = messages.find((m: Message) => m.id === messageId);
-    if (targetMessage && shouldOpenThread && !activeThread) {
+    if (targetMessage) {
       setActiveThread(targetMessage);
     }
-  }, [channel, isLoadingChannel, messages, activeThread]);
+  }, [channel, isLoadingChannel, messages]);
 
   // Redirect to general if channel doesn't exist
   useEffect(() => {
@@ -66,13 +65,13 @@ function ChannelPageContent({ params }: ChannelPageProps) {
   }, [channel, isLoadingChannel, router])
 
   const handleThreadClick = (message: Message) => {
-    router.replace(`/chat/${params.channelId}?thread=true#message-${message.id}`);
     setActiveThread(message);
+    router.replace(`/chat/${params.channelId}?thread=true#message-${message.id}`);
   }
 
   const handleCloseThread = useCallback(() => {
-    router.replace(`/chat/${params.channelId}`);
     setActiveThread(null);
+    router.replace(`/chat/${params.channelId}`);
   }, [router, params.channelId]);
 
   if (isLoadingChannel) {

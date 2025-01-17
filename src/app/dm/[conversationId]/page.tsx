@@ -34,13 +34,13 @@ export default function DMPage({ params }: DMPageProps) {
   })
 
   const handleThreadClick = useCallback((message: Message) => {
-    router.replace(`/dm/${params.conversationId}?thread=true#message-${message.id}`);
     setActiveThread(message);
+    router.replace(`/dm/${params.conversationId}?thread=true#message-${message.id}`);
   }, [router, params.conversationId]);
 
   const handleCloseThread = useCallback(() => {
-    router.replace(`/dm/${params.conversationId}`);
     setActiveThread(null);
+    router.replace(`/dm/${params.conversationId}`);
   }, [router, params.conversationId]);
 
   // Handle URL parameters for thread
@@ -49,8 +49,7 @@ export default function DMPage({ params }: DMPageProps) {
     const shouldOpenThread = searchParams.get('thread') === 'true';
     const messageId = window.location.hash.replace('#message-', '');
 
-    // If there's no thread parameter, ensure thread is closed
-    if (!shouldOpenThread && activeThread) {
+    if (!shouldOpenThread) {
       setActiveThread(null);
       return;
     }
@@ -59,15 +58,14 @@ export default function DMPage({ params }: DMPageProps) {
 
     // Find the message in the current messages array
     const targetMessage = messages.find(m => m.id === messageId);
-    
-    if (targetMessage && shouldOpenThread && !activeThread) {
+    if (targetMessage) {
       setActiveThread(targetMessage);
     }
     
     if (containerRef.current) {
       jumpToMessage(messageId, containerRef.current);
     }
-  }, [messages, activeThread, jumpToMessage]);
+  }, [messages, jumpToMessage]);
 
   useEffect(() => {
     const fetchConversation = async () => {
