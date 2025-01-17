@@ -1,8 +1,5 @@
 import { Pinecone, createClient, OpenAI } from "./deps.js"
 
-console.log('=== Starting function ===')
-console.log('=== Imports loaded ===')
-
 // Initialize clients
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -16,8 +13,6 @@ const pinecone = new Pinecone({
 const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY') ?? ''
 })
-
-console.log('=== Clients initialized ===')
 
 Deno.serve(async (req) => {
   try {
@@ -33,17 +28,99 @@ Deno.serve(async (req) => {
       return new Response('ok', { headers })
     }
 
+    // Get batch size from query params or default to 3
+    const url = new URL(req.url)
+    const batchSize = parseInt(url.searchParams.get('batch_size') || '3')
+    console.log('Batch size:', batchSize)
+
+    // Get unprocessed messages
+    console.log('Querying messages...')
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('id, content')
+      .not('id', 'in', (
+        supabase.from('message_embedding_status')
+        .select('message_id')
+      ))
+      .limit(batchSize)
+
+    console.log('Query result:', { messages, error })
+    if (error) throw error
+    if (!messages || messages.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, processed: 0, message: 'No messages to process' }),
+        { headers }
+      )
+    }
+
+    console.log(`Processing ${messages.length} messages`)
+    const index = pinecone.index('messages-from-db')
+    console.log('Pinecone index initialized')
+    
+    let processed = 0
+    let errors = 0
+
+    for (const message of messages) {
+      try {
+        console.log(`Creating embedding for message ${message.id}`)
+        const embedding = await openai.embeddings.create({
+          model: "text-embedding-3-large",
+          input: message.content,
+          encoding_format: "float"
+        })
+        console.log('Embedding created')
+
+        console.log('Upserting to Pinecone...')
+        await index.upsert([{
+          id: message.id,
+          values: embedding.data[0].embedding,
+          metadata: {
+            content: message.content
+          }
+        }])
+        console.log('Upserted to Pinecone')
+
+        // Update status
+        await supabase
+          .from('message_embedding_status')
+          .insert({
+            message_id: message.id,
+            status: 'completed',
+            processed_at: new Date().toISOString()
+          })
+
+        processed++
+        console.log(`Processed message ${message.id}`)
+      } catch (error) {
+        errors++
+        console.error(`Error processing message ${message.id}:`, error)
+        
+        await supabase
+          .from('message_embedding_status')
+          .insert({
+            message_id: message.id,
+            status: 'error',
+            error_message: String(error),
+            processed_at: new Date().toISOString()
+          })
+      }
+    }
+
     return new Response(
-      JSON.stringify({ message: "Not implemented" }),
+      JSON.stringify({
+        success: true,
+        processed,
+        errors,
+        continuation_token: messages.length === batchSize ? messages[messages.length - 1].id : undefined
+      }),
       { headers }
     )
+
   } catch (error) {
+    console.error('Error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: false, error: String(error) }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
   }
 }) 

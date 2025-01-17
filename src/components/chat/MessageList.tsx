@@ -149,6 +149,8 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
   )
 }, areEqual)
 
+MessageRow.displayName = 'MessageRow'
+
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center h-full">
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
@@ -161,7 +163,7 @@ const LoadingBanner = ({ children }: { children: React.ReactNode }) => (
   </div>
 )
 
-export const MessageList = forwardRef<MessageListHandle, MessageListProps>(({ 
+export const MessageList = forwardRef<MessageListHandle, MessageListProps>(({
   messages, 
   isLoading, 
   isLoadingMore,
@@ -340,4 +342,6 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(({
       )}
     </div>
   )
-}) 
+})
+
+MessageList.displayName = 'MessageList' 
