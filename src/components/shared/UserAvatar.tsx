@@ -4,6 +4,7 @@ import { usePresenceContext } from '@/components/providers/PresenceProvider'
 import { StatusIndicator } from '@/components/presence/StatusIndicator'
 import { UserTooltip } from '@/components/shared/UserTooltip'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/auth'
 
 interface UserAvatarProps {
   userId: string
@@ -34,8 +35,9 @@ export function UserAvatar({
   size = 'md',
   isBot = false
 }: UserAvatarProps) {
-  const { userStatuses } = usePresenceContext()
-  const status = isBot ? 'online' : (userStatuses[userId] || 'offline')
+  const { user } = useAuth()
+  const presenceContext = user ? usePresenceContext() : null
+  const status = isBot ? 'online' : (presenceContext?.userStatuses[userId] || 'offline')
   const initials = getInitials(name)
   
   if (!initials) return null
@@ -55,7 +57,7 @@ export function UserAvatar({
       >
         {initials}
       </div>
-      {showStatus && (
+      {showStatus && user && (
         <div className={cn(
           'absolute -bottom-0.5 -right-0.5 ring-2 ring-white dark:ring-gray-900 rounded-full',
           size === 'sm' && 'scale-75 -bottom-1 -right-1',
@@ -67,7 +69,7 @@ export function UserAvatar({
     </div>
   )
 
-  if (!lastSeen) {
+  if (!lastSeen || !user) {
     return avatar
   }
 
