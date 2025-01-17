@@ -138,6 +138,7 @@ export default function DMPage({ params }: DMPageProps) {
             name={otherUser.full_name}
             showStatus
             lastSeen={otherUser.last_seen}
+            isBot={otherUser.is_bot}
           />
           <div>
             <h1 className="font-semibold">{otherUser.full_name}</h1>

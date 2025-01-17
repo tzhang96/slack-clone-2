@@ -84,6 +84,7 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
               name={message.user.fullName} 
               lastSeen={message.user.lastSeen || undefined}
               size="sm"
+              isBot={message.user.is_bot}
             />
             <div className="flex-1 min-w-0 pr-8">
               <div className="flex items-baseline gap-x-2">

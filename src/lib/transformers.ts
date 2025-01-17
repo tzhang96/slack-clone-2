@@ -21,7 +21,8 @@ export class DataTransformer {
         username: 'Unknown',
         fullName: 'Unknown User',
         lastSeen: null,
-        status: 'offline'
+        status: 'offline',
+        is_bot: false
       }
     }
 
@@ -30,7 +31,8 @@ export class DataTransformer {
       username: dbUser.username,
       fullName: dbUser.full_name,
       lastSeen: dbUser.last_seen,
-      status: dbUser.status || 'offline'
+      status: dbUser.status || 'offline',
+      is_bot: dbUser.is_bot || false
     }
   }
 
@@ -103,13 +105,15 @@ export class DataTransformer {
       username: user.username,
       fullName: user.full_name,
       lastSeen: user.last_seen,
-      status: user.status || 'offline'
+      status: user.status || 'offline',
+      is_bot: user.is_bot || false
     } : {
       id: dbMessage.user_id,
       username: 'Unknown',
       fullName: 'Unknown User',
       lastSeen: null,
-      status: 'offline'
+      status: 'offline',
+      is_bot: false
     }
 
     return {

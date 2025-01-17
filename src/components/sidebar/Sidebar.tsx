@@ -62,6 +62,7 @@ export function Sidebar() {
                     name={otherUser.fullName}
                     showStatus
                     size="sm"
+                    isBot={otherUser.is_bot}
                   />
                   <div className="ml-2 min-w-0 flex-1">
                     <div className="flex items-baseline justify-between">

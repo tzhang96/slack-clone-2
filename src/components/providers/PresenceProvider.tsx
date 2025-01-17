@@ -18,96 +18,21 @@ interface PresenceContextType {
 
 const PresenceContext = createContext<PresenceContextType | undefined>(undefined)
 
-type Status = 'online' | 'away';
-type UpdateStatusFn = (status: Status) => void;
-
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
-  const { status, updateStatus: hookUpdateStatus, error } = usePresence()
+  const { user } = useAuth()
+  const { status, updateStatus, error } = usePresence()
   const [userStatuses, setUserStatuses] = useState<Record<string, UserStatus>>({})
-  const { user, loading } = useAuth()
-
-  // Wrap updateStatus to also update userStatuses
-  const updateStatus = async (newStatus: UserStatus) => {
-    if (!user) return
-    await hookUpdateStatus(newStatus)
-    setUserStatuses(current => ({
-      ...current,
-      [user.id]: newStatus
-    }))
-  }
-
-  // Create separate debounced functions for online and away status
-  const debouncedSetOnline = useCallback(
-    debounce((updateStatus: UpdateStatusFn) => updateStatus('online'), 1000, { leading: true }),
-    [updateStatus]
-  )
-
-  const debouncedSetAway = useCallback(
-    debounce((updateStatus: UpdateStatusFn) => updateStatus('away'), 3000, { leading: false }),
-    [updateStatus]
-  )
-
-  // Set initial online status when user logs in
-  useEffect(() => {
-    if (!loading && user) {
-      // Use direct updateStatus call for initial status
-      updateStatus('online')
-    }
-  }, [user, loading])
-
-  // Handle presence detection
-  useEffect(() => {
-    if (!user) return
-
-    const handleVisibilityChange = () => {
-      if (!loading) {
-        if (document.hidden) {
-          debouncedSetAway(updateStatus)
-        } else {
-          debouncedSetOnline(updateStatus)
-        }
-      }
-    }
-
-    const handleFocus = () => {
-      if (!loading) {
-        debouncedSetOnline(updateStatus)
-      }
-    }
-
-    const handleBlur = () => {
-      if (!loading) {
-        debouncedSetAway(updateStatus)
-      }
-    }
-
-    // Add event listeners
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleFocus)
-    window.addEventListener('blur', handleBlur)
-
-    // Set initial status based on visibility
-    if (!loading && document.hidden) {
-      debouncedSetAway(updateStatus)
-    }
-
-    // Cleanup
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('blur', handleBlur)
-    }
-  }, [user, loading, debouncedSetOnline, debouncedSetAway])
 
   // Initialize app data when auth is ready
   useEffect(() => {
-    if (user) {
-      initializeData().catch(console.error)
-    }
+    if (!user) return
+    initializeData().catch(console.error)
   }, [user])
 
   // Load initial statuses and set up real-time subscription
   useEffect(() => {
+    if (!user) return
+
     let presenceChannel: RealtimeChannel | null = null
 
     const loadStatuses = async () => {
@@ -124,7 +49,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       const statuses = data.reduce((acc, user) => ({
         ...acc,
         [user.id]: user.status
-      }), {})
+      }), {} as Record<string, UserStatus>)
 
       setUserStatuses(statuses)
     }
@@ -138,7 +63,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
             event: 'UPDATE',
             schema: 'public',
             table: 'users',
-            filter: user ? `id=neq.${user.id}` : undefined
+            filter: `id=neq.${user.id}`
           },
           (payload) => {
             if (payload.eventType === 'UPDATE' && payload.new && 'status' in payload.new) {
@@ -157,43 +82,43 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       return presenceChannel
     }
 
-    if (user) {
-      loadStatuses()
-      const channel = setupRealtimeSubscription()
+    loadStatuses()
+    const channel = setupRealtimeSubscription()
 
-      // Handle reconnection
-      const connectionChannel = supabase.channel('connection_monitor')
-        .on('system', { event: 'reconnected' }, () => {
-          console.log('Reloading user statuses after reconnection')
-          loadStatuses()
-        })
-        .subscribe()
+    // Handle reconnection
+    const connectionChannel = supabase.channel('connection_monitor')
+      .on('system', { event: 'reconnected' }, () => {
+        console.log('Reloading user statuses after reconnection')
+        loadStatuses()
+      })
+      .subscribe()
 
-      return () => {
-        if (channel) {
-          channel.unsubscribe()
-        }
-        connectionChannel.unsubscribe()
+    return () => {
+      if (channel) {
+        channel.unsubscribe()
       }
+      connectionChannel.unsubscribe()
     }
   }, [user])
 
+  const value = {
+    status,
+    updateStatus,
+    userStatuses,
+    error
+  }
+
   return (
-    <PresenceContext.Provider value={{
-      status,
-      updateStatus,
-      userStatuses,
-      error
-    }}>
+    <PresenceContext.Provider value={value}>
       {children}
     </PresenceContext.Provider>
   )
 }
 
-export function usePresenceContext() {
+export const usePresenceContext = () => {
   const context = useContext(PresenceContext)
   if (context === undefined) {
-    throw new Error('usePresenceContext must be used within a PresenceProvider')
+    throw new Error('usePresenceContext must be used inside PresenceProvider')
   }
   return context
 } 

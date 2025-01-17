@@ -62,12 +62,14 @@ export interface DMConversation {
     username: string
     fullName: string
     status: string | null
+    is_bot: boolean
   }
   user2: {
     id: string
     username: string
     fullName: string
     status: string | null
+    is_bot: boolean
   }
   user1_id: string
   user2_id: string
@@ -76,5 +78,6 @@ export interface DMConversation {
     username: string
     fullName: string
     status: string | null
+    is_bot: boolean
   }
 } 

@@ -12,6 +12,7 @@ interface UserAvatarProps {
   showStatus?: boolean
   lastSeen?: string | null
   size?: 'xs' | 'sm' | 'md'
+  isBot?: boolean
 }
 
 function getInitials(name: string): string {
@@ -30,10 +31,11 @@ export function UserAvatar({
   className, 
   showStatus = true, 
   lastSeen,
-  size = 'md'
+  size = 'md',
+  isBot = false
 }: UserAvatarProps) {
   const { userStatuses } = usePresenceContext()
-  const status = userStatuses[userId] || 'offline'
+  const status = isBot ? 'online' : (userStatuses[userId] || 'offline')
   const initials = getInitials(name)
   
   if (!initials) return null
@@ -70,7 +72,7 @@ export function UserAvatar({
   }
 
   return (
-    <UserTooltip userId={userId} name={name} lastSeen={lastSeen}>
+    <UserTooltip userId={userId} name={name} lastSeen={lastSeen} isBot={isBot}>
       {avatar}
     </UserTooltip>
   )

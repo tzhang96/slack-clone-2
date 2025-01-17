@@ -6,6 +6,7 @@ export interface DMUser {
   username: string
   avatar_url: string | null
   last_seen: string | null
+  is_bot: boolean
 }
 
 export interface DMMessage {

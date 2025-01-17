@@ -5,6 +5,7 @@ export interface DbUser {
   full_name: string
   last_seen: string | null
   status: string | null
+  is_bot: boolean
 }
 
 // Represents the shape of joined data from Supabase
@@ -14,6 +15,7 @@ export interface DbJoinedUser {
   full_name: string
   last_seen: string | null
   status: string | null
+  is_bot: boolean
 }
 
 export interface DbJoinedReaction {

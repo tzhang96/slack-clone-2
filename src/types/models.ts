@@ -5,6 +5,7 @@ export interface User {
   fullName: string
   lastSeen: string | null
   status: string | null
+  is_bot: boolean
 }
 
 export interface Channel {

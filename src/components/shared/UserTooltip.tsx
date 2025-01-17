@@ -13,14 +13,15 @@ interface UserTooltipProps {
   name: string
   lastSeen: string
   children: React.ReactNode
+  isBot?: boolean
 }
 
-export function UserTooltip({ userId, name, lastSeen, children }: UserTooltipProps) {
+export function UserTooltip({ userId, name, lastSeen, children, isBot = false }: UserTooltipProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const { userStatuses } = usePresenceContext()
   const tooltipRef = useRef<HTMLDivElement>(null)
-  const status = userStatuses[userId] || 'offline'
+  const status = isBot ? 'online' : (userStatuses[userId] || 'offline')
   const router = useRouter()
   const { supabase } = useSupabase()
 

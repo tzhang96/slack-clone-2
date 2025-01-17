@@ -13,6 +13,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata = {
   title: 'ChatGenius',
   description: 'A real-time chat application',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 }
 
 export default async function RootLayout({
@@ -26,13 +27,18 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className="h-full">
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+      </head>
       <body className={`${inter.className} bg-blue-500 h-full overflow-hidden`}>
         <Providers>
           <SupabaseProvider session={session}>
             <AuthProvider>
-              <PresenceProvider>
-                {children}
-              </PresenceProvider>
+              {session ? (
+                <PresenceProvider>{children}</PresenceProvider>
+              ) : (
+                children
+              )}
             </AuthProvider>
           </SupabaseProvider>
         </Providers>
