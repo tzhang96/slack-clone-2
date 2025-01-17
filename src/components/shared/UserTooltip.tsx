@@ -8,6 +8,12 @@ import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface UserTooltipProps {
   userId: string
@@ -24,8 +30,9 @@ export function UserTooltip({ userId, name, lastSeen, children, isBot = false }:
   const router = useRouter()
   const { supabase } = useSupabase()
   const [isLoading, setIsLoading] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
 
-  const startDM = async () => {
+  const startDM = async (isAIChat = false) => {
     if (!user) {
       router.push('/login')
       return
@@ -33,12 +40,36 @@ export function UserTooltip({ userId, name, lastSeen, children, isBot = false }:
 
     setIsLoading(true)
     try {
+      let botUserId = null
+      
+      if (isAIChat) {
+        // Check if bot user already exists for the clicked user
+        const { data: existingBot } = await supabase
+          .from('users')
+          .select('id')
+          .eq('bot_owner_id', userId)
+          .eq('is_bot', true)
+          .single()
+
+        if (existingBot) {
+          botUserId = existingBot.id
+        } else {
+          // Create bot user for the clicked user
+          const { data: newBot, error: botError } = await supabase
+            .rpc('create_bot_user', { owner_id: userId })
+            .single()
+
+          if (botError) throw botError
+          botUserId = newBot
+        }
+      }
+
       // Check if conversation exists
       const { data: existingConvo } = await supabase
         .from('dm_conversations')
         .select('id')
         .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
-        .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+        .or(`user1_id.eq.${isAIChat ? botUserId : userId},user2_id.eq.${isAIChat ? botUserId : userId}`)
         .single()
 
       if (existingConvo) {
@@ -51,7 +82,8 @@ export function UserTooltip({ userId, name, lastSeen, children, isBot = false }:
         .from('dm_conversations')
         .insert({
           user1_id: user.id,
-          user2_id: userId,
+          user2_id: isAIChat ? botUserId : userId,
+          is_ai_chat: isAIChat
         })
         .select('id')
         .single()
@@ -64,44 +96,70 @@ export function UserTooltip({ userId, name, lastSeen, children, isBot = false }:
       toast.error('Failed to start conversation')
     } finally {
       setIsLoading(false)
+      setIsOpen(false)
     }
   }
 
   return (
-    <div className="group relative">
-      {children}
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 text-sm whitespace-nowrap z-50">
-        <div className="flex flex-col items-center gap-2">
-          <div className="font-medium">{name}</div>
-          {user && (
-            <div className="flex items-center gap-1 text-gray-500">
-              <StatusIndicator status={status} className="w-2 h-2" />
-              <span className="capitalize">{status}</span>
+    <TooltipProvider>
+      <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+        <TooltipTrigger asChild onClick={(e) => {
+          e.preventDefault()
+          setIsOpen(!isOpen)
+        }}>
+          {children}
+        </TooltipTrigger>
+        <TooltipContent 
+          side="top" 
+          align="center"
+          sideOffset={8}
+          className="shadow-sm p-3 text-sm whitespace-nowrap z-50"
+        >
+          <div className="flex flex-col items-center gap-2">
+            <div className="font-medium">{name}</div>
+            {user && (
+              <div className="flex items-center gap-1 text-gray-500">
+                <StatusIndicator status={status} className="w-2 h-2" />
+                <span className="capitalize">{status}</span>
+              </div>
+            )}
+            <div className="text-xs text-gray-500">
+              Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })}
             </div>
-          )}
-          <div className="text-xs text-gray-500">
-            Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })}
+            {isBot ? (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <Bot className="w-3 h-3" />
+                <span>Bot</span>
+              </div>
+            ) : user && userId !== user.id && (
+              <div className="flex flex-col gap-2 w-full">
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="flex items-center gap-1 w-full"
+                  onClick={() => startDM(false)}
+                  disabled={isLoading}
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  <span>Message</span>
+                </Button>
+                {status === 'offline' && (
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="flex items-center gap-1 w-full"
+                    onClick={() => startDM(true)}
+                    disabled={isLoading}
+                  >
+                    <Bot className="w-3 h-3" />
+                    <span>AI Reply Guy</span>
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
-          {isBot ? (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <Bot className="w-3 h-3" />
-              <span>Bot</span>
-            </div>
-          ) : user && userId !== user.id && (
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              className="flex items-center gap-1"
-              onClick={startDM}
-              disabled={isLoading}
-            >
-              <MessageSquare className="w-3 h-3" />
-              <span>Message</span>
-            </Button>
-          )}
-        </div>
-        <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 bg-white dark:bg-gray-800 transform rotate-45" />
-      </div>
-    </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 } 
