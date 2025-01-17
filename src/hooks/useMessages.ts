@@ -64,6 +64,7 @@ const transformMessage = (msg: DbJoinedMessage): Message => {
     id: msg.id,
     content: msg.content,
     createdAt: msg.created_at,
+    user_id: msg.user_id,
     channelId: msg.channel_id,
     conversationId: msg.conversation_id,
     parentMessageId: msg.parent_message_id,
@@ -348,7 +349,11 @@ export function useMessages(channelId: string | undefined) {
                 return withoutOptimistic
               }
               
-              return [...withoutOptimistic, transformMessage(messageData as unknown as DbJoinedMessage)]
+              return [...withoutOptimistic, transformMessage({
+                ...messageData,
+                user_id: messageData.user_id,
+                users: messageData.users
+              } as unknown as DbJoinedMessage)]
             })
           }
         }
@@ -398,6 +403,7 @@ export function useMessages(channelId: string | undefined) {
       id: `temp-${Date.now()}`,
       content,
       createdAt: new Date().toISOString(),
+      user_id: user.id,
       channelId,
       conversationId: null,
       parentMessageId: null,
