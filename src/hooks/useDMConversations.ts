@@ -30,13 +30,15 @@ export function useDMConversations() {
               id,
               username,
               full_name,
-              status
+              status,
+              is_bot
             ),
             user2:user2_id (
               id,
               username,
               full_name,
-              status
+              status,
+              is_bot
             )
           `)
           .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
@@ -75,13 +77,15 @@ export function useDMConversations() {
                   id: conversation.user1.id,
                   username: conversation.user1.username,
                   fullName: conversation.user1.full_name,
-                  status: conversation.user1.status
+                  status: conversation.user1.status,
+                  is_bot: conversation.user1.is_bot || false
                 },
                 user2: {
                   id: conversation.user2.id,
                   username: conversation.user2.username,
                   fullName: conversation.user2.full_name,
-                  status: conversation.user2.status
+                  status: conversation.user2.status,
+                  is_bot: conversation.user2.is_bot || false
                 },
                 user1_id: conversation.user1_id,
                 user2_id: conversation.user2_id,
@@ -89,7 +93,8 @@ export function useDMConversations() {
                   id: otherUser.id,
                   username: otherUser.username,
                   fullName: otherUser.full_name,
-                  status: otherUser.status
+                  status: otherUser.status,
+                  is_bot: otherUser.is_bot || false
                 }
               }
               return transformed

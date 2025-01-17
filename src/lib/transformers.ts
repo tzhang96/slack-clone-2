@@ -67,7 +67,8 @@ export class DataTransformer {
         user: {
           id: 'unknown',
           username: 'Unknown',
-          full_name: 'Unknown User'
+          full_name: 'Unknown User',
+          is_bot: false
         }
       }
     }
@@ -79,7 +80,8 @@ export class DataTransformer {
       user: {
         id: user.id,
         username: user.username,
-        full_name: user.full_name
+        full_name: user.full_name,
+        is_bot: user.is_bot || false
       }
     }
   }

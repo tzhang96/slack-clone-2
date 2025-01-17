@@ -35,7 +35,8 @@ const MESSAGE_SELECT = `
     username,
     full_name,
     last_seen,
-    status
+    status,
+    is_bot
   ),
   reactions (
     id,
@@ -43,7 +44,8 @@ const MESSAGE_SELECT = `
     user:users (
       id,
       username,
-      full_name
+      full_name,
+      is_bot
     )
   ),
   files (
@@ -290,7 +292,7 @@ export function useUnifiedMessages(context: MessageContext) {
     // Fetch user data from database
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, username, full_name, last_seen, status')
+      .select('id, username, full_name, last_seen, status, is_bot')
       .eq('id', user.id)
       .single()
 
@@ -316,7 +318,8 @@ export function useUnifiedMessages(context: MessageContext) {
         username: userData.username,
         fullName: userData.full_name,
         lastSeen: userData.last_seen,
-        status: userData.status
+        status: userData.status,
+        is_bot: userData.is_bot || false
       },
       reactions: [],
       file: null,

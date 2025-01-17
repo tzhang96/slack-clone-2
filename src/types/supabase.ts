@@ -70,6 +70,7 @@ export interface ReactionWithUser {
     id: string
     full_name: string
     username: string
+    is_bot: boolean
   }
 }
 
