@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuth } from '@/lib/auth'
-import { VariableSizeList, ListChildComponentProps, areEqual } from 'react-window'
-import { useRef, useEffect, memo, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
+import { VariableSizeList, ListChildComponentProps } from 'react-window'
+import { useRef, useEffect, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Message } from '@/types/chat'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { MessageReactions } from '@/components/shared/MessageReactions'
@@ -41,14 +41,7 @@ interface MessageRowProps {
   onThreadClick: ((message: Message) => void) | null
 }
 
-const areEqualCheck = (
-  prevProps: ListChildComponentProps<MessageRowData>,
-  nextProps: ListChildComponentProps<MessageRowData>
-) => {
-  return areEqual(prevProps, nextProps)
-}
-
-const MessageRow = memo(function MessageRow({ data, index, style }: ListChildComponentProps<MessageRowData>) {
+function MessageRow({ data, index, style }: ListChildComponentProps<MessageRowData>) {
   const { messages, currentUserId, onThreadClick, context } = data
   const message = messages[index]
   const messageRef = useRef<HTMLDivElement>(null)
@@ -154,7 +147,7 @@ const MessageRow = memo(function MessageRow({ data, index, style }: ListChildCom
       </div>
     </div>
   )
-}, areEqualCheck)
+}
 
 MessageRow.displayName = 'MessageRow'
 
@@ -341,7 +334,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(({
         }}
         overscanCount={5}
       >
-        {(props) => <MessageRow {...props} />}
+        {MessageRow}
       </VariableSizeList>
 
       {hasMore && !isLoadingMore && (
