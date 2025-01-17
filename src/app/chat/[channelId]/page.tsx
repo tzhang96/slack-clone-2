@@ -2,16 +2,13 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { MessageListWithError } from '@/components/chat/MessageListError'
-import { MessageInput } from '@/components/chat/MessageInput'
-import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 import { useChannelContext } from '@/components/providers/ChannelProvider'
 import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
 import { Message } from '@/types/chat'
-import { FileMetadata } from '@/hooks/useFileUpload'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
-import { LoadingState } from '@/components/shared/LoadingSpinner'
 import { ChannelPageSkeleton } from '@/components/chat/ChannelPageSkeleton'
+import { ChannelChat } from '@/components/chat/ChannelChat'
+import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 
 interface ChannelPageProps {
   params: {
@@ -26,20 +23,7 @@ function ChannelPageContent({ params }: ChannelPageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeThread, setActiveThread] = useState<Message | null>(null)
 
-  const { 
-    messages, 
-    isLoading: isLoadingMessages, 
-    isLoadingMore,
-    hasMore,
-    error, 
-    sendMessage,
-    loadMore,
-    handleMessagesChange,
-    isAtBottom,
-    checkIsAtBottom,
-    scrollToBottom,
-    jumpToMessage
-  } = useUnifiedMessages({
+  const { messages, jumpToMessage } = useUnifiedMessages({
     type: 'channel',
     id: channel?.id,
     parentMessage: null,
@@ -81,30 +65,14 @@ function ChannelPageContent({ params }: ChannelPageProps) {
     }
   }, [channel, isLoadingChannel, router])
 
-  // Handle message changes and scrolling
-  useEffect(() => {
-    if (!channel?.id) return;
-    handleMessagesChange(containerRef.current, messages)
-  }, [messages, handleMessagesChange, channel?.id, isAtBottom])
-
-  const handleSendMessage = async (content: string, file: FileMetadata | null = null) => {
-    try {
-      await sendMessage(content, file ?? null)
-      // Scroll to bottom after sending
-      if (containerRef.current) {
-        scrollToBottom(containerRef.current, true)
-      }
-    } catch (error) {
-      console.error('Error sending message:', error)
-    }
-  }
-
   const handleThreadClick = (message: Message) => {
     router.replace(`/chat/${params.channelId}?thread=true#message-${message.id}`);
+    setActiveThread(message);
   }
 
   const handleCloseThread = useCallback(() => {
     router.replace(`/chat/${params.channelId}`);
+    setActiveThread(null);
   }, [router, params.channelId]);
 
   if (isLoadingChannel) {
@@ -124,45 +92,35 @@ function ChannelPageContent({ params }: ChannelPageProps) {
         </div>
         
         <div className="flex-1 min-h-0 flex flex-col relative" ref={containerRef}>
-          <div className="absolute inset-0 flex flex-col">
-            <div className="flex-1 min-h-0">
-              <MessageListWithError
-                messages={messages}
-                isLoading={isLoadingMessages}
-                isLoadingMore={isLoadingMore}
-                hasMore={hasMore}
-                onLoadMore={loadMore}
-                onThreadClick={handleThreadClick}
-                context="channel"
-              />
-            </div>
-            <div className="flex-shrink-0 bg-white border-t">
-              <MessageInput
-                onSend={handleSendMessage}
-                context="channel"
-                placeholder="Message"
-              />
-            </div>
+          <div className="absolute inset-0">
+            <ChannelChat
+              channelId={channel.id}
+              activeThread={activeThread}
+              onThreadClick={handleThreadClick}
+              onCloseThread={handleCloseThread}
+            />
           </div>
         </div>
       </div>
 
       {/* Thread Sidebar - Responsive */}
       {activeThread && (
-        <div className="fixed inset-0 bg-white z-50 lg:w-[--thread-width] lg:right-0 lg:left-auto lg:border-l lg:top-[--header-height]">
-          <ErrorBoundary
-            fallback={
-              <div className="p-4 text-red-600">
-                Failed to load thread. Please try closing and reopening it.
-              </div>
-            }
-          >
+        <>
+          {/* Desktop Thread */}
+          <div className="hidden lg:block fixed right-0 top-[--header-height] bottom-0 w-[--thread-width] border-l bg-white">
             <ThreadSidebar
               parentMessage={activeThread}
               onClose={handleCloseThread}
             />
-          </ErrorBoundary>
-        </div>
+          </div>
+          {/* Mobile Thread */}
+          <div className="lg:hidden fixed inset-0 bg-white z-50">
+            <ThreadSidebar
+              parentMessage={activeThread}
+              onClose={handleCloseThread}
+            />
+          </div>
+        </>
       )}
     </div>
   )

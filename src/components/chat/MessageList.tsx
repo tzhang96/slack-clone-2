@@ -118,6 +118,7 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
                   )}
                   {message.replyCount ? (
                     <ThreadPreview
+                      messageId={message.id}
                       replyCount={message.replyCount}
                       participants={message.threadParticipants?.map(p => ({
                         id: p.id,

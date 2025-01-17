@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import type { Database } from '@/types/supabase'
@@ -6,60 +6,13 @@ import type { Database } from '@/types/supabase'
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
 
-  // Ensure environment variables are set
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing Supabase environment variables')
-    return res
-  }
-
-  // Ensure URL is properly formatted
-  try {
-    new URL(supabaseUrl)
-  } catch (error) {
-    console.error('Invalid Supabase URL:', supabaseUrl)
-    return res
-  }
-  
-  const supabase = createServerClient<Database>(
-    supabaseUrl,
-    supabaseKey,
-    {
-      cookies: {
-        get(name: string) {
-          return req.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: any) {
-          req.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          res.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: any) {
-          req.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          res.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-        },
-      },
-    }
-  )
+  // Create a Supabase client configured to use cookies
+  const supabase = createMiddlewareClient<Database>({ req, res })
 
   try {
+    // Refresh session if expired - required for Server Components
+    await supabase.auth.getSession()
+
     const {
       data: { session },
     } = await supabase.auth.getSession()

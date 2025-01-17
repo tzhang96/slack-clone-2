@@ -8,3 +8,16 @@
   padding: 0;
   box-sizing: border-box;
 } 
+
+@keyframes highlight-fade {
+  0% {
+    background-color: rgb(219 234 254); /* bg-blue-100 */
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.highlight-message {
+  animation: highlight-fade 2s ease-out forwards;
+} 

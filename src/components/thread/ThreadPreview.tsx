@@ -1,12 +1,12 @@
 import { formatDistanceToNow } from 'date-fns'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Reply } from 'lucide-react'
 import { Message } from '@/types/chat'
-import { UserTooltip } from '../shared/UserTooltip'
-import { UserAvatar } from '../shared/UserAvatar'
+import { useEffect, useState } from 'react'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 interface ThreadPreviewProps {
   replyCount: number
-  latestReply?: Message
+  messageId: string
   participants: Array<{
     id: string
     username: string
@@ -17,35 +17,51 @@ interface ThreadPreviewProps {
 }
 
 export function ThreadPreview({
-  replyCount,
+  replyCount: initialReplyCount,
+  messageId,
   participants,
   onClick,
 }: ThreadPreviewProps) {
+  const { supabase } = useSupabase()
+  const [replyCount, setReplyCount] = useState(initialReplyCount)
+
+  useEffect(() => {
+    // Update local state when prop changes
+    setReplyCount(initialReplyCount)
+  }, [initialReplyCount])
+
+  useEffect(() => {
+    // Subscribe to parent message updates
+    const channel = supabase
+      .channel(`thread-preview-${messageId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `id=eq.${messageId}`
+        },
+        (payload) => {
+          if (payload.new.reply_count !== undefined) {
+            setReplyCount(payload.new.reply_count)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [messageId, supabase])
+
   return (
     <button
       onClick={onClick}
       className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm py-1 px-2 rounded hover:bg-gray-100"
     >
+      <Reply className="w-4 h-4" />
       <span>{replyCount} {replyCount === 1 ? 'reply' : 'replies'}</span>
-      <div className="flex items-center">
-        <div className="flex -space-x-1">
-          {participants.slice(0, 3).map((participant) => (
-            <UserAvatar
-              key={participant.id}
-              userId={participant.id}
-              name={participant.fullName}
-              size="xs"
-              className="border-[1.5px] border-gray-200 dark:border-gray-700"
-              showStatus={false}
-            />
-          ))}
-          {participants.length > 3 && (
-            <div className="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border-[1.5px] border-gray-200 dark:border-gray-700 flex items-center justify-center text-[10px] text-gray-500">
-              +{participants.length - 3}
-            </div>
-          )}
-        </div>
-      </div>
     </button>
   )
 } 

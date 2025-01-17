@@ -78,20 +78,27 @@ export function useMessageSearch(): UseMessageSearchResult {
         return;
       }
 
+      if (!user) {
+        throw new Error('You must be logged in to search messages');
+      }
+
       const { data, error: searchError } = await supabase
         .rpc('search_messages', {
           search_query: trimmedQuery,
-          searching_user_id: user?.id,
+          searching_user_id: user.id,
           limit_val: 50,
-          channel_id_filter: channelId || null
+          offset_val: 0
         });
 
-      if (searchError) throw searchError;
+      if (searchError) {
+        console.error('Supabase search error:', searchError);
+        throw new Error(searchError.message || 'Failed to search messages');
+      }
 
       setResults(data ? data.map(transformSearchResult) : []);
     } catch (err) {
       console.error('Error searching messages:', err);
-      setError(err instanceof Error ? err : new Error('Failed to search messages'));
+      setError(err instanceof Error ? err : new Error('An unexpected error occurred while searching messages'));
     } finally {
       setIsLoading(false);
     }

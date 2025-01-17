@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
-import type { Message } from '@/types/models'
+import type { Message, File as CustomFile } from '@/types/models'
 import type { DbJoinedMessage } from '@/types/database'
 import { useMessageMutation } from '@/hooks/useMessageMutation'
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
@@ -66,16 +66,21 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
     console.log('[useUnifiedMessages] Reset State:', {
       contextType: context.type,
       contextId: context.id,
+      enabled: context.enabled,
       timestamp: new Date().toISOString()
     })
-    setMessages([])
-    setIsLoading(false)
-    setError(null)
-    setCursor(null)
-    setHasMore(true)
-    setIsLoadingMore(false)
-    setIsAtBottom(true)
-  }, [context.type, context.id])
+
+    // Only reset if enabled (don't clear messages when disabled)
+    if (context.enabled) {
+      setMessages([])
+      setIsLoading(false)
+      setError(null)
+      setCursor(null)
+      setHasMore(true)
+      setIsLoadingMore(false)
+      setIsAtBottom(true)
+    }
+  }, [context.type, context.id, context.enabled])
 
   // Fetch messages
   const fetchMessages = useCallback(async () => {
@@ -185,7 +190,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
           table: 'messages',
           filter: context.type === 'thread' 
             ? `parent_message_id=eq.${context.id}` 
-            : `channel_id=eq.${context.id} and parent_message_id is null`
+            : `channel_id=eq.${context.id} and parent_message_id is null and conversation_id is null`
         },
         async (payload) => {
           console.log('[useUnifiedMessages] Message Event:', {
@@ -196,6 +201,11 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
           })
 
           if (payload.eventType === 'INSERT') {
+            // Skip if this is a thread message and we're in channel view
+            if (context.type === 'channel' && payload.new.parent_message_id) {
+              return;
+            }
+
             // Fetch the complete message
             const { data: messageData } = await supabase
               .from('messages')
@@ -317,6 +327,45 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
   const sendMessage = async (content: string, file: FileMetadata | null = null) => {
     if (!user || !content.trim() || !context.id) return
 
+    // Create optimistic message
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`,
+      content: content.trim(),
+      createdAt: new Date().toISOString(),
+      user_id: user.id,
+      channelId: context.type === 'thread' ? context.parentMessage?.channelId ?? null : context.type === 'channel' ? context.id : null,
+      conversationId: context.type === 'thread' ? context.parentMessage?.conversationId ?? null : context.type === 'dm' ? context.id : null,
+      parentMessageId: context.type === 'thread' ? context.id : null,
+      replyCount: 0,
+      latestReplyAt: null,
+      isThreadParent: false,
+      user: {
+        id: user.id,
+        username: user.email?.split('@')[0] || 'user',
+        fullName: user.user_metadata?.full_name || 'Anonymous',
+        lastSeen: null,
+        status: null
+      },
+      reactions: [],
+      threadParticipants: [],
+      file: file ? {
+        id: 'temp-file',
+        messageId: `temp-${Date.now()}`,
+        userId: user.id,
+        bucketPath: file.bucket_path,
+        fileName: file.file_name,
+        fileSize: file.file_size,
+        contentType: file.content_type,
+        isImage: file.is_image,
+        imageWidth: file.image_width,
+        imageHeight: file.image_height,
+        createdAt: new Date().toISOString()
+      } as CustomFile : null
+    }
+
+    // Add optimistic message to state
+    setMessages(prev => [...prev, optimisticMessage])
+
     try {
       const messageParams = {
         content,
@@ -327,7 +376,11 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
       }
 
       const newMessage = await sendMessageMutation(messageParams)
-      if (!newMessage) return
+      if (!newMessage) {
+        // Remove optimistic message on error
+        setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
+        return
+      }
 
       // Fetch the complete message with the file
       const { data: updatedMessage, error: fetchError } = await supabase
@@ -341,11 +394,16 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
       if (updatedMessage) {
         const transformedMessage = DataTransformer.toMessage(updatedMessage as DbJoinedMessage)
         if (transformedMessage) {
-          setMessages(prev => [...prev, transformedMessage])
+          // Replace optimistic message with real one
+          setMessages(prev => prev.map(msg => 
+            msg.id === optimisticMessage.id ? transformedMessage : msg
+          ))
         }
       }
     } catch (err) {
       console.error('Error sending message:', err)
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
       setError(err as Error)
     }
   }
@@ -398,6 +456,20 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
   // Function to jump to a specific message
   const jumpToMessage = async (messageId: string, container: HTMLElement) => {
     try {
+      // First check if the message is already in the current list
+      const messageElement = container.querySelector(`[data-message-id="${messageId}"]`);
+      if (messageElement) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Add highlight class with transition
+        messageElement.classList.add('highlight-message');
+        // Remove after animation completes
+        messageElement.addEventListener('animationend', () => {
+          messageElement.classList.remove('highlight-message');
+        }, { once: true });
+        return;
+      }
+
+      // If message not found, fetch messages around it
       setIsLoading(true);
       setError(null);
 
@@ -421,11 +493,12 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
         const messageElement = container.querySelector(`[data-message-id="${messageId}"]`);
         if (messageElement) {
           messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Highlight the message temporarily
-          messageElement.classList.add('bg-blue-50');
-          setTimeout(() => {
-            messageElement.classList.remove('bg-blue-50');
-          }, 2000);
+          // Add highlight class with transition
+          messageElement.classList.add('highlight-message');
+          // Remove after animation completes
+          messageElement.addEventListener('animationend', () => {
+            messageElement.classList.remove('highlight-message');
+          }, { once: true });
         }
       });
     } catch (err) {
