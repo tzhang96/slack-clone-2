@@ -7,7 +7,7 @@ interface MessageListProps {
   isLoading: boolean
   isLoadingMore: boolean
   hasMore: boolean
-  onLoadMore?: () => void
+  onLoadMore: () => void
   context: 'channel' | 'dm' | 'thread'
   onThreadClick?: (message: Message) => void
 }

@@ -94,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(`OpenAI API Error: ${await openAiResponse.text()}`);
     }
 
-    const embeddingData = await openAiResponse.json();
+    const embeddingData = await openAiResponse.json() as OpenAIEmbeddingResponse;
     if (!embeddingData.data) {
       throw new Error('OpenAI embedding response is missing the data field.');
     }

@@ -16,6 +16,13 @@ export function ThreadMessageList({
   hasMore,
   onLoadMore = null
 }: ThreadMessageListProps) {
+  // Default no-op function for onLoadMore
+  const handleLoadMore = () => {
+    if (onLoadMore) {
+      onLoadMore();
+    }
+  };
+
   return (
     <div className="flex-1 min-h-0">
       <MessageList
@@ -23,7 +30,7 @@ export function ThreadMessageList({
         isLoading={isLoading}
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
-        onLoadMore={onLoadMore || undefined}
+        onLoadMore={handleLoadMore}
         context="thread"
       />
     </div>

@@ -497,6 +497,96 @@ export function useUnifiedMessages(context: MessageContext) {
     })
   }, [messages, context.type, context.id])
 
+  const jumpToMessage = useCallback((messageId: string, container: HTMLElement) => {
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex !== -1) {
+      // Find the message element
+      const messageElement = container.querySelector(`[data-message-id="${messageId}"]`);
+      if (messageElement) {
+        // Scroll the message into view
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Add highlight effect
+        messageElement.classList.add('highlight-message');
+        messageElement.addEventListener('animationend', () => {
+          messageElement.classList.remove('highlight-message');
+        }, { once: true });
+      }
+    }
+  }, [messages]);
+
+  // Load more messages function
+  const loadMore = useCallback(async () => {
+    if (!context.enabled || !context.id || !cursor || isLoadingMore || !hasMore) {
+      console.log('[useUnifiedMessages] Skip loadMore:', {
+        enabled: context.enabled,
+        contextId: context.id,
+        hasCursor: !!cursor,
+        isLoadingMore,
+        hasMore,
+        timestamp: new Date().toISOString()
+      })
+      return
+    }
+
+    console.log('[useUnifiedMessages] Loading more messages:', {
+      contextType: context.type,
+      contextId: context.id,
+      cursor,
+      timestamp: new Date().toISOString()
+    })
+
+    setIsLoadingMore(true)
+    setError(null)
+
+    try {
+      const query = supabase
+        .from('messages')
+        .select(MESSAGE_SELECT)
+
+      // Add filters based on context type
+      if (context.type === 'thread') {
+        query.eq('parent_message_id', context.id)
+      } else {
+        query
+          .eq(context.type === 'channel' ? 'channel_id' : 'conversation_id', context.id)
+          .is('parent_message_id', null)
+          .is(context.type === 'channel' ? 'conversation_id' : 'channel_id', null)
+      }
+
+      // Add pagination
+      query
+        .lt('created_at', cursor)
+        .order('created_at', { ascending: false })
+        .limit(MESSAGES_PER_PAGE)
+
+      const { data, error } = await query
+
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        setHasMore(false)
+        return
+      }
+
+      // Transform the data to the correct type
+      const messagesData = data as unknown as DbJoinedMessage[]
+      const validMessages = messagesData
+        .map(msg => DataTransformer.toMessage(msg))
+        .filter((msg): msg is Message => msg !== null)
+        .reverse()
+
+      setMessages(prev => [...prev, ...validMessages])
+      setHasMore(validMessages.length === MESSAGES_PER_PAGE)
+      setCursor(data[data.length - 1].created_at)
+    } catch (err) {
+      console.error('[useUnifiedMessages] LoadMore Error:', err)
+      setError(err as Error)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [context.enabled, context.id, context.type, cursor, hasMore, isLoadingMore, supabase])
+
   return {
     messages,
     isLoading,
@@ -505,9 +595,10 @@ export function useUnifiedMessages(context: MessageContext) {
     error,
     isAtBottom,
     sendMessage,
-    loadMore: undefined, // Will be implemented later
+    loadMore,
     checkIsAtBottom,
     scrollToBottom,
-    handleMessagesChange
+    handleMessagesChange,
+    jumpToMessage
   }
 } 
