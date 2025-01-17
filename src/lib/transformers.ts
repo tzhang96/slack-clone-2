@@ -57,10 +57,20 @@ export class DataTransformer {
   }
 
   static toReaction(dbReaction: DbJoinedReaction): ReactionWithUser | null {
-    // Ensure we have user data
-    const user = dbReaction.users[0]
-    if (!user) return null
+    // Safely handle missing users array
+    if (!dbReaction.users || !Array.isArray(dbReaction.users) || dbReaction.users.length === 0) {
+      return {
+        id: dbReaction.id,
+        emoji: dbReaction.emoji,
+        user: {
+          id: 'unknown',
+          username: 'Unknown',
+          full_name: 'Unknown User'
+        }
+      }
+    }
 
+    const user = dbReaction.users[0]
     return {
       id: dbReaction.id,
       emoji: dbReaction.emoji,
@@ -86,7 +96,21 @@ export class DataTransformer {
   static toMessage(dbMessage: DbJoinedMessage): Message | null {
     // Handle both array and object user data from joins
     const user = Array.isArray(dbMessage.users) ? dbMessage.users[0] : dbMessage.users
-    if (!user) return null
+    
+    // Create default user if no user data is available
+    const messageUser = user ? {
+      id: dbMessage.user_id,
+      username: user.username,
+      fullName: user.full_name,
+      lastSeen: user.last_seen,
+      status: user.status || 'offline'
+    } : {
+      id: dbMessage.user_id,
+      username: 'Unknown',
+      fullName: 'Unknown User',
+      lastSeen: null,
+      status: 'offline'
+    }
 
     return {
       id: dbMessage.id,
@@ -99,7 +123,7 @@ export class DataTransformer {
       replyCount: dbMessage.reply_count || 0,
       latestReplyAt: dbMessage.latest_reply_at || null,
       isThreadParent: dbMessage.is_thread_parent || false,
-      user: this.toUser(user),
+      user: messageUser,
       reactions: dbMessage.reactions
         ?.map(r => this.toReaction(r))
         .filter((r): r is ReactionWithUser => r !== null) || [],
