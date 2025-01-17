@@ -7,7 +7,7 @@ import { ThreadSidebar } from '@/components/thread/ThreadSidebar'
 import { Message } from '@/types/chat'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { ChannelPageSkeleton } from '@/components/chat/ChannelPageSkeleton'
-import { ChannelChat } from '@/components/chat/ChannelChat'
+import { ChannelChat, ChannelChatHandle } from '@/components/chat/ChannelChat'
 import { useUnifiedMessages } from '@/hooks/useUnifiedMessages'
 
 interface ChannelPageProps {
@@ -20,10 +20,10 @@ function ChannelPageContent({ params }: ChannelPageProps) {
   const router = useRouter()
   const { getChannelByName, isLoading: isLoadingChannel } = useChannelContext()
   const channel = getChannelByName(params.channelId)
-  const containerRef = useRef<HTMLDivElement>(null)
   const [activeThread, setActiveThread] = useState<Message | null>(null)
+  const chatRef = useRef<ChannelChatHandle>(null)
 
-  const { messages, jumpToMessage } = useUnifiedMessages({
+  const { messages } = useUnifiedMessages({
     type: 'channel',
     id: channel?.id,
     parentMessage: null,
@@ -46,17 +46,17 @@ function ChannelPageContent({ params }: ChannelPageProps) {
 
     if (!messageId) return;
 
-    // Find the message in the current messages array
-    const targetMessage = messages.find(m => m.id === messageId);
-    
+    // Jump to message if ID is present
+    if (chatRef.current) {
+      chatRef.current.handleJumpToMessage(messageId);
+    }
+
+    // Set active thread if needed
+    const targetMessage = messages.find((m: Message) => m.id === messageId);
     if (targetMessage && shouldOpenThread && !activeThread) {
       setActiveThread(targetMessage);
     }
-    
-    if (containerRef.current) {
-      jumpToMessage(messageId, containerRef.current);
-    }
-  }, [channel, isLoadingChannel, jumpToMessage, messages, setActiveThread, activeThread]);
+  }, [channel, isLoadingChannel, messages, activeThread]);
 
   // Redirect to general if channel doesn't exist
   useEffect(() => {
@@ -91,9 +91,10 @@ function ChannelPageContent({ params }: ChannelPageProps) {
           <p className="text-sm text-gray-500">{channel.description}</p>
         </div>
         
-        <div className="flex-1 min-h-0 flex flex-col relative" ref={containerRef}>
+        <div className="flex-1 min-h-0 flex flex-col relative">
           <div className="absolute inset-0">
             <ChannelChat
+              ref={chatRef}
               channelId={channel.id}
               activeThread={activeThread}
               onThreadClick={handleThreadClick}
@@ -126,23 +127,17 @@ function ChannelPageContent({ params }: ChannelPageProps) {
   )
 }
 
-export default function ChannelPage(props: ChannelPageProps) {
+export default function ChannelPage({ params }: ChannelPageProps) {
   return (
     <ErrorBoundary
       fallback={
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <h3 className="text-lg font-semibold text-red-600 mb-2">
-              Failed to load channel
-            </h3>
-            <p className="text-sm text-gray-600">
-              There was an error loading this channel. Please try refreshing the page.
-            </p>
-          </div>
+        <div className="p-4 text-red-500">
+          <h3 className="font-semibold mb-2">Error loading channel</h3>
+          <p className="text-sm">Please try refreshing the page</p>
         </div>
       }
     >
-      <ChannelPageContent {...props} />
+      <ChannelPageContent params={params} />
     </ErrorBoundary>
   )
 } 

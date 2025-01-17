@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react'
-import { MessageList } from '../chat/MessageList'
+import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { MessageList, MessageListHandle } from '../chat/MessageList'
 import { MessageInput } from '../chat/MessageInput'
 import { useUnifiedMessages } from '../../hooks/useUnifiedMessages'
 import { Message } from '../../types/chat'
@@ -12,13 +12,18 @@ interface ChannelChatProps {
   onCloseThread: () => void
 }
 
-export function ChannelChat({ 
+export interface ChannelChatHandle {
+  handleJumpToMessage: (messageId: string) => void
+}
+
+export const ChannelChat = forwardRef<ChannelChatHandle, ChannelChatProps>(({ 
   channelId, 
   activeThread,
   onThreadClick,
   onCloseThread 
-}: ChannelChatProps) {
+}, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
+  const messageListRef = useRef<MessageListHandle>(null)
 
   const {
     messages,
@@ -57,6 +62,15 @@ export function ChannelChat({
     }
   }
 
+  // Expose jump to message method
+  useImperativeHandle(ref, () => ({
+    handleJumpToMessage: (messageId: string) => {
+      if (messageListRef.current) {
+        messageListRef.current.scrollToMessage(messageId);
+      }
+    }
+  }), []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -72,6 +86,7 @@ export function ChannelChat({
           <div className="absolute inset-0 flex flex-col">
             <div className="flex-1 min-h-0">
               <MessageList
+                ref={messageListRef}
                 messages={messages}
                 isLoading={isLoading}
                 isLoadingMore={isLoadingMore}
@@ -93,4 +108,6 @@ export function ChannelChat({
       </div>
     </div>
   )
-} 
+})
+
+ChannelChat.displayName = 'ChannelChat'; 

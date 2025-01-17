@@ -439,14 +439,26 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
       }
 
       // Fetch messages around the target timestamp
-      const { data, error } = await query
-        .or(`created_at.gte.${targetMessage.created_at},created_at.lte.${targetMessage.created_at}`)
+      // Get half before and half after the target message
+      const halfLimit = Math.floor(MESSAGES_PER_PAGE / 2);
+
+      const { data: olderMessages, error: olderError } = await query
+        .lte('created_at', targetMessage.created_at)
         .order('created_at', { ascending: false })
-        .limit(MESSAGES_PER_PAGE);
+        .limit(halfLimit);
 
-      if (error) throw error;
+      if (olderError) throw olderError;
 
-      return data as DbJoinedMessage[];
+      const { data: newerMessages, error: newerError } = await query
+        .gt('created_at', targetMessage.created_at)
+        .order('created_at', { ascending: true })
+        .limit(halfLimit);
+
+      if (newerError) throw newerError;
+
+      // Combine and sort messages
+      const allMessages = [...(olderMessages || []), ...(newerMessages || []).reverse()];
+      return allMessages as DbJoinedMessage[];
     } catch (err) {
       console.error('Error fetching messages around ID:', err);
       return null;

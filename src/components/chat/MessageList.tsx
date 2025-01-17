@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth'
 import { VariableSizeList, ListChildComponentProps, areEqual } from 'react-window'
-import { useRef, useEffect, memo, useState, useCallback } from 'react'
+import { useRef, useEffect, memo, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Message } from '@/types/chat'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { MessageReactions } from '@/components/shared/MessageReactions'
@@ -17,9 +17,13 @@ interface MessageListProps {
   isLoading: boolean
   isLoadingMore: boolean
   hasMore: boolean
-  onLoadMore?: () => void
-  context: 'channel' | 'dm' | 'thread'
+  onLoadMore: () => void
+  context?: 'channel' | 'dm' | 'thread'
   onThreadClick?: (message: Message) => void
+}
+
+export interface MessageListHandle {
+  scrollToMessage: (messageId: string) => void
 }
 
 interface MessageRowData {
@@ -157,7 +161,7 @@ const LoadingBanner = ({ children }: { children: React.ReactNode }) => (
   </div>
 )
 
-export function MessageList({ 
+export const MessageList = forwardRef<MessageListHandle, MessageListProps>(({ 
   messages, 
   isLoading, 
   isLoadingMore,
@@ -165,7 +169,7 @@ export function MessageList({
   onLoadMore,
   context = 'channel',
   onThreadClick
-}: MessageListProps) {
+}, ref) => {
   const { user } = useAuth()
   const listRef = useRef<VariableSizeList>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -173,6 +177,30 @@ export function MessageList({
   const [containerHeight, setContainerHeight] = useState(0)
   const isLoadingMoreRef = useRef(isLoadingMore)
   const prevMessagesLength = useRef(messages.length)
+
+  // Add method to scroll to message by ID
+  const scrollToMessage = useCallback((messageId: string) => {
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex !== -1 && listRef.current) {
+      listRef.current.scrollToItem(messageIndex, 'center');
+      
+      // Add highlight effect
+      requestAnimationFrame(() => {
+        const messageElement = containerRef.current?.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+          messageElement.classList.add('highlight-message');
+          messageElement.addEventListener('animationend', () => {
+            messageElement.classList.remove('highlight-message');
+          }, { once: true });
+        }
+      });
+    }
+  }, [messages]);
+
+  // Expose scrollToMessage method to parent
+  useImperativeHandle(ref, () => ({
+    scrollToMessage
+  }), [scrollToMessage]);
 
   useEffect(() => {
     console.log('MessageList received messages:', messages)
@@ -312,4 +340,4 @@ export function MessageList({
       )}
     </div>
   )
-} 
+}) 
