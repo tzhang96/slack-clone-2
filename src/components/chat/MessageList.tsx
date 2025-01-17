@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuth } from '@/lib/auth'
-import { VariableSizeList, ListChildComponentProps } from 'react-window'
-import { useRef, useEffect, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
+import { VariableSizeList, ListChildComponentProps, areEqual } from 'react-window'
+import { useRef, useEffect, memo, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Message } from '@/types/chat'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { MessageReactions } from '@/components/shared/MessageReactions'
@@ -41,7 +41,7 @@ interface MessageRowProps {
   onThreadClick: ((message: Message) => void) | null
 }
 
-function MessageRow({ data, index, style }: ListChildComponentProps<MessageRowData>) {
+const MessageRow = memo(function MessageRow({ data, index, style }: ListChildComponentProps<MessageRowData>) {
   const { messages, currentUserId, onThreadClick, context } = data
   const message = messages[index]
   const messageRef = useRef<HTMLDivElement>(null)
@@ -147,7 +147,7 @@ function MessageRow({ data, index, style }: ListChildComponentProps<MessageRowDa
       </div>
     </div>
   )
-}
+}, areEqual)
 
 MessageRow.displayName = 'MessageRow'
 
