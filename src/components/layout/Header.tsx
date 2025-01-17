@@ -43,10 +43,10 @@ export function Header() {
           <button
             onClick={() => setIsAISearchOpen(true)}
             className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors flex items-center gap-1"
-            aria-label="AI Search"
+            aria-label="Ask AI"
           >
             <Sparkles size={20} />
-            <span className="text-sm">AI Search</span>
+            <span className="text-sm">Ask AI</span>
           </button>
           
           <div className="flex items-center gap-2">

@@ -80,7 +80,14 @@ Deno.serve(async (req) => {
     // Upsert the embedding to Pinecone
     await index.upsert([{
       id: record.id,
-      values: embedding
+      values: embedding,
+      metadata: {
+        content: record.content,
+        sender_id: record.sender_id,
+        channel_id: record.channel_id,
+        conversation_id: record.conversation_id,
+        created_at: record.created_at
+      }
     }])
 
     // Record the embedding in our database

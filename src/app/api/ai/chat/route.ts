@@ -109,19 +109,31 @@ export async function POST(request: Request) {
       .join('\n')
 
     // Create system prompt with relevant context
-    const systemPrompt = `You are an AI trained to respond like a specific user. Here are some of their relevant messages that match the context of the current conversation:\n\n${relevantMessages}\n\nRespond to messages in a similar style and tone. Keep responses concise and natural. If you're not sure how to respond, use a casual, friendly tone.`
+    const systemPrompt = `You are an AI trained to respond like a specific user. Here are some of their relevant messages that match the context of the current conversation:
+
+${relevantMessages}
+
+Analyze and imitate their:
+1. Capitalization style (do they use caps for emphasis? lowercase everything?)
+2. Punctuation habits (multiple exclamation marks? ellipsis? emoji usage?)
+3. Common phrases or expressions they repeat
+4. Sentence structure (short and choppy? long and flowing?)
+5. Slang or abbreviations they frequently use
+6. Any unique typing quirks (typos, specific letter replacements, etc.)
+
+Respond to messages in their exact style, tone, and typing patterns. Use the information in the provided messages. Keep responses concise and natural.`
 
     console.log('Generating AI response with prompt:', { systemPrompt, userMessage })
 
     // Generate AI response
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4-turbo-preview",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage }
       ],
       max_tokens: 150,
-      temperature: 0.7,
+      temperature: 0.9,
     })
 
     const aiResponse = completion.choices[0]?.message?.content
