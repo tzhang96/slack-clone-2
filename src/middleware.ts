@@ -1,38 +1,95 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import type { Database } from '@/types/supabase'
 
+const PUBLIC_ROUTES = ['/login', '/signup', '/test']
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
 
-  // Create a Supabase client configured to use cookies
-  const supabase = createMiddlewareClient<Database>({ req, res })
+  // Ensure environment variables are set
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  try {
-    // Refresh session if expired - required for Server Components
-    await supabase.auth.getSession()
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    // If user is not signed in and the current path is not /login or /signup
-    // redirect the user to /login
-    if (!session && !['/login', '/signup', '/test'].includes(req.nextUrl.pathname)) {
-      return NextResponse.redirect(new URL('/login', req.url))
-    }
-
-    // If user is signed in and the current path is /login or /signup
-    // redirect the user to /chat
-    if (session && ['/login', '/signup'].includes(req.nextUrl.pathname)) {
-      return NextResponse.redirect(new URL('/chat', req.url))
-    }
-  } catch (error) {
-    console.error('Error in auth middleware:', error)
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase environment variables')
+    return res
   }
 
-  return res
+  // Ensure URL is properly formatted
+  try {
+    new URL(supabaseUrl)
+  } catch (error) {
+    console.error('Invalid Supabase URL:', supabaseUrl)
+    return res
+  }
+  
+  const supabase = createServerClient<Database>(
+    supabaseUrl,
+    supabaseKey,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          req.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          res.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: any) {
+          req.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          res.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+        },
+      },
+    }
+  )
+
+  try {
+    // Verify user's session
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      // If no user and trying to access protected route, redirect to login
+      if (!PUBLIC_ROUTES.includes(req.nextUrl.pathname)) {
+        return NextResponse.redirect(new URL('/login', req.url))
+      }
+    } else {
+      // If user exists and trying to access public route, redirect to chat
+      if (PUBLIC_ROUTES.includes(req.nextUrl.pathname)) {
+        return NextResponse.redirect(new URL('/chat', req.url))
+      }
+    }
+
+    // Update user's last seen
+    if (user) {
+      await supabase.from('users').upsert({
+        id: user.id,
+        last_seen: new Date().toISOString(),
+      })
+    }
+
+    return res
+  } catch (e) {
+    // On error, allow request to continue but clear user state
+    return res
+  }
 }
 
 export const config = {

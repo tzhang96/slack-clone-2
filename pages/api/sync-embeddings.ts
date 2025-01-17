@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '@/types/supabase';
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 // Initialize clients
-const supabase = createClient<Database>(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -26,6 +25,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log('Handler started');
     console.log('Environment check:', {
+      supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       openaiKey: !!process.env.OPENAI_API_KEY,
       pineconeKey: !!process.env.PINECONE_API_KEY
     });

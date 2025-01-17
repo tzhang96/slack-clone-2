@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default async function HomePage() {
-  redirect('/login')
-  return null
+export default function Home() {
+  redirect('/chat')
 } 

@@ -349,11 +349,7 @@ export function useMessages(channelId: string | undefined) {
                 return withoutOptimistic
               }
               
-              return [...withoutOptimistic, transformMessage({
-                ...messageData,
-                user_id: messageData.user_id,
-                users: messageData.users
-              } as unknown as DbJoinedMessage)]
+              return [...withoutOptimistic, transformMessage(messageData as unknown as DbJoinedMessage)]
             })
           }
         }

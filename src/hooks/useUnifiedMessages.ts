@@ -4,7 +4,7 @@ import { useSupabase } from '@/components/providers/SupabaseProvider'
 import type { Message, File as CustomFile } from '@/types/models'
 import type { DbJoinedMessage } from '@/types/database'
 import { useMessageMutation } from '@/hooks/useMessageMutation'
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { RealtimePostgresChangesPayload, RealtimeChannel } from '@supabase/supabase-js'
 import { DataTransformer } from '@/lib/transformers'
 import { MESSAGE_SELECT } from '@/lib/data-access'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -70,16 +70,14 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
       timestamp: new Date().toISOString()
     })
 
-    // Only reset if enabled (don't clear messages when disabled)
-    if (context.enabled) {
-      setMessages([])
-      setIsLoading(false)
-      setError(null)
-      setCursor(null)
-      setHasMore(true)
-      setIsLoadingMore(false)
-      setIsAtBottom(true)
-    }
+    // Always reset state when context changes
+    setMessages([])
+    setIsLoading(true) // Set loading to true immediately
+    setError(null)
+    setCursor(null)
+    setHasMore(true)
+    setIsLoadingMore(false)
+    setIsAtBottom(true)
   }, [context.type, context.id, context.enabled])
 
   // Fetch messages
@@ -156,15 +154,20 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
     }
   }, [context.enabled, context.id, context.type, supabase])
 
-  // Load initial messages
+  // Effect to handle fetching when context changes
   useEffect(() => {
     if (context.enabled) {
       fetchMessages()
+    } else {
+      setIsLoading(false)
     }
   }, [context.enabled, fetchMessages])
 
   // Set up message subscriptions
   useEffect(() => {
+    let isSubscribed = true
+    let messageChannel: RealtimeChannel | null = null
+
     if (!context.enabled || !context.id) {
       console.log('[useUnifiedMessages] Skip Subscription:', {
         enabled: context.enabled,
@@ -181,7 +184,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
     })
 
     // Set up real-time subscription
-    const messageChannel = supabase
+    messageChannel = supabase
       .channel(`messages:${context.id}`)
       .on('postgres_changes',
         {
@@ -190,9 +193,11 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
           table: 'messages',
           filter: context.type === 'thread' 
             ? `parent_message_id=eq.${context.id}` 
-            : `channel_id=eq.${context.id} and parent_message_id is null and conversation_id is null`
+            : `${context.type === 'channel' ? 'channel_id' : 'conversation_id'}=eq.${context.id} and parent_message_id is null`
         },
         async (payload) => {
+          if (!isSubscribed) return // Skip if component is unmounted
+
           console.log('[useUnifiedMessages] Message Event:', {
             eventType: payload.eventType,
             contextType: context.type,
@@ -213,7 +218,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
               .eq('id', payload.new.id)
               .single()
 
-            if (messageData) {
+            if (messageData && isSubscribed) { // Check isSubscribed again after async operation
               const transformedMessage = DataTransformer.toMessage(messageData as DbJoinedMessage)
               if (transformedMessage) {
                 setMessages(prev => {
@@ -236,7 +241,10 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
         contextId: context.id,
         timestamp: new Date().toISOString()
       })
-      messageChannel.unsubscribe()
+      isSubscribed = false
+      if (messageChannel) {
+        messageChannel.unsubscribe()
+      }
     }
   }, [context.enabled, context.id, context.type, supabase])
 
@@ -347,7 +355,7 @@ export function useUnifiedMessages(context: MessageContext): UseUnifiedMessagesR
         status: null
       },
       reactions: [],
-      threadParticipants: [],
+      threadParticipants: null,
       file: file ? {
         id: 'temp-file',
         messageId: `temp-${Date.now()}`,

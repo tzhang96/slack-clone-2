@@ -1,9 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '@/types/supabase';
 import { NextApiRequest, NextApiResponse } from 'next';
 
-// Create Supabase admin client with service role key
-const supabase = createClient<Database>(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );

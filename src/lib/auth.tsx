@@ -24,37 +24,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || ''
 
   useEffect(() => {
-    // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-
-      // Redirect based on auth state
-      if (!session && !PUBLIC_ROUTES.includes(pathname)) {
-        router.replace('/login')
-      } else if (session && PUBLIC_ROUTES.includes(pathname)) {
-        router.replace('/chat')
+    const checkUser = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error) throw error
+        setUser(user)
+        setLoading(false)
+      } catch (error) {
+        console.error('Error checking user:', error)
+        setUser(null)
+        setLoading(false)
       }
-    })
+    }
 
-    // Listen for changes on auth state
+    checkUser()
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null)
-      
-      // Redirect based on auth state change
-      if (!session && !PUBLIC_ROUTES.includes(pathname)) {
-        router.replace('/login')
-      } else if (session && PUBLIC_ROUTES.includes(pathname)) {
-        router.replace('/chat')
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN') {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (!error && user) {
+          setUser(user)
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
       }
-      
-      router.refresh()
     })
 
-    return () => subscription.unsubscribe()
-  }, [pathname, router])
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase.auth])
 
   const signUp = async (email: string, password: string, username: string, fullName: string) => {
     try {
@@ -107,6 +108,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error(dbError.message || 'Failed to create user profile')
         }
       }
+
+      // Verify user after signup
+      const { data: { user: verifiedUser } } = await supabase.auth.getUser()
+      setUser(verifiedUser)
     } catch (error) {
       if (error instanceof Error && error.message.includes('already exists')) {
         // If the error is just that the profile already exists, we can ignore it
@@ -124,6 +129,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (error) throw error
+
+    // Verify user after sign in
+    const { data: { user: verifiedUser } } = await supabase.auth.getUser()
+    setUser(verifiedUser)
   }
 
   const signOut = async () => {

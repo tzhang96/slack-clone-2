@@ -35,28 +35,13 @@ export function LoginForm() {
     try {
       setError('')
       await signIn(data.email, data.password)
-      
-      // Wait for auth state to be updated
-      const maxAttempts = 10
-      const interval = 200 // 200ms between checks
-      let attempts = 0
 
-      const checkAuthAndRedirect = async () => {
-        if (attempts >= maxAttempts) {
-          setError('Login successful but failed to redirect. Please try refreshing the page.')
-          return
-        }
+      // Verify user is logged in
+      const { data: { user }, error: verifyError } = await supabase.auth.getUser()
+      if (verifyError || !user) throw new Error('Failed to verify login')
 
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          router.push('/chat')
-        } else {
-          attempts++
-          setTimeout(checkAuthAndRedirect, interval)
-        }
-      }
-
-      await checkAuthAndRedirect()
+      router.refresh()
+      router.push('/chat')
     } catch (err) {
       setError('Invalid email or password')
     }

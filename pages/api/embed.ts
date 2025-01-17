@@ -6,18 +6,25 @@
  */
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '@/types/supabase';
-import fetch from 'node-fetch';
+import fetch from 'node-fetch'; // If needed, in Next.js server route fetch is typically available
 import { v4 as uuidv4 } from 'uuid';
 
 // 1. Ensure these environment variables are available
+// (In your .env.local, for example)
 const {
-  NEXT_PUBLIC_SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
+  NEXT_PUBLIC_SUPABASE_URL,
   OPENAI_API_KEY,
   PINECONE_API_KEY,
   PINECONE_INDEX_NAME
 } = process.env;
+
+// 2. Create Supabase client
+// Use the service role key so we can read the entire table
+const supabase = createClient(
+  NEXT_PUBLIC_SUPABASE_URL || '',
+  SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 // Add type definitions for OpenAI API response
 interface OpenAIEmbeddingResponse {
@@ -40,12 +47,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed. Use POST.' });
     }
-
-    // Create Supabase admin client with service role key
-    const supabase = createClient<Database>(
-      NEXT_PUBLIC_SUPABASE_URL!,
-      SUPABASE_SERVICE_ROLE_KEY!
-    );
 
     // 3. Fetch all messages from your Supabase table
     const { data: messages, error } = await supabase

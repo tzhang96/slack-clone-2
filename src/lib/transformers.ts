@@ -92,7 +92,7 @@ export class DataTransformer {
       id: dbMessage.id,
       content: dbMessage.content,
       createdAt: dbMessage.created_at,
-      user_id: dbMessage.user_id,
+      user_id: user.id,
       channelId: dbMessage.channel_id,
       conversationId: dbMessage.conversation_id,
       parentMessageId: dbMessage.parent_message_id,

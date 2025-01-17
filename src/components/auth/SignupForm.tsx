@@ -42,34 +42,15 @@ export function SignupForm() {
     try {
       setError('')
       await signUp(data.email, data.password, data.username, data.fullName)
-      
-      // Wait for auth state to be updated
-      const maxAttempts = 10
-      const interval = 200 // 200ms between checks
-      let attempts = 0
 
-      const checkAuthAndRedirect = async () => {
-        if (attempts >= maxAttempts) {
-          setError('Account created but failed to redirect. Please try refreshing the page.')
-          return
-        }
+      // Verify user is logged in
+      const { data: { user }, error: verifyError } = await supabase.auth.getUser()
+      if (verifyError || !user) throw new Error('Failed to verify signup')
 
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          router.push('/chat')
-        } else {
-          attempts++
-          setTimeout(checkAuthAndRedirect, interval)
-        }
-      }
-
-      await checkAuthAndRedirect()
+      router.refresh()
+      router.push('/chat')
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('An error occurred during signup')
-      }
+      setError('Failed to create account')
     }
   }
 
