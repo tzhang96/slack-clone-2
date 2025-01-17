@@ -41,7 +41,14 @@ interface MessageRowProps {
   onThreadClick: ((message: Message) => void) | null
 }
 
-const MessageRow = memo(({ data, index, style }: ListChildComponentProps<MessageRowData>) => {
+const areEqualCheck = (
+  prevProps: ListChildComponentProps<MessageRowData>,
+  nextProps: ListChildComponentProps<MessageRowData>
+) => {
+  return areEqual(prevProps, nextProps)
+}
+
+const MessageRow = memo(function MessageRow({ data, index, style }: ListChildComponentProps<MessageRowData>) {
   const { messages, currentUserId, onThreadClick, context } = data
   const message = messages[index]
   const messageRef = useRef<HTMLDivElement>(null)
@@ -147,7 +154,7 @@ const MessageRow = memo(({ data, index, style }: ListChildComponentProps<Message
       </div>
     </div>
   )
-}, areEqual)
+}, areEqualCheck)
 
 MessageRow.displayName = 'MessageRow'
 
@@ -334,7 +341,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(({
         }}
         overscanCount={5}
       >
-        {MessageRow}
+        {(props) => <MessageRow {...props} />}
       </VariableSizeList>
 
       {hasMore && !isLoadingMore && (
