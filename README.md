@@ -42,7 +42,24 @@ PINECONE_INDEX_NAME=your-pinecone-index-name   # e.g., messages-from-db
 - Run the SQL commands from `supabase/schema.sql` in the SQL editor
 - Apply any pending migrations from `supabase/migrations/` (see [MIGRATIONS.md](MIGRATIONS.md) for details)
 
-5. Start the development server:
+5. Deploy edge functions:
+```bash
+# Install Supabase CLI if not already installed
+npm install -g supabase
+
+# Deploy edge functions
+supabase functions deploy sync-message-embeddings
+supabase functions deploy cron-sync-embeddings
+
+# Set up environment variables for edge functions in Supabase dashboard:
+# - OPENAI_API_KEY
+# - PINECONE_API_KEY
+# - PINECONE_INDEX_NAME
+# - SUPABASE_URL
+# - SUPABASE_SERVICE_ROLE_KEY
+```
+
+6. Start the development server:
 ```bash
 npm run dev
 ```
@@ -134,6 +151,7 @@ import { Button } from '@/components/shared/Button'
 - [x] Message reactions
 - [x] Direct messages
 - [x] File attachments
+- [x] Automatic message embeddings for semantic search
 
 ## Development
 

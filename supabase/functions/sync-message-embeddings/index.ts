@@ -1,4 +1,25 @@
-import { Pinecone, createClient, OpenAI } from "./deps.js"
+// @ts-nocheck  /* Remove this line after deploying */
+import { Pinecone } from '@pinecone-database/pinecone'
+import { createClient } from '@supabase/supabase-js'
+import OpenAI from 'openai'
+
+/* TypeScript types - uncomment after deploying
+interface WebhookPayload {
+  type: 'INSERT' | 'UPDATE' | 'DELETE'
+  table: string
+  record: {
+    id: string
+    content: string
+    sender_id: string
+    channel_id?: string
+    conversation_id?: string
+    created_at: string
+    [key: string]: any
+  }
+  schema: string
+  old_record: null | Record<string, any>
+}
+*/
 
 console.log('=== Starting function ===')
 console.log('=== Imports loaded ===')
@@ -32,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse the request body
-    const { record, type } = await req.json()
+    const { record, type } = await req.json() as WebhookPayload
     
     // Only process insert operations
     if (type !== 'INSERT') {
@@ -59,15 +80,19 @@ Deno.serve(async (req) => {
     // Upsert the embedding to Pinecone
     await index.upsert([{
       id: record.id,
-      values: embedding,
-      metadata: {
-        content: record.content,
-        sender_id: record.sender_id,
-        channel_id: record.channel_id,
-        conversation_id: record.conversation_id,
-        created_at: record.created_at
-      }
+      values: embedding
     }])
+
+    // Record the embedding in our database
+    const { error: dbError } = await supabase
+      .from('message_embeddings')
+      .upsert({
+        message_id: record.id
+      })
+
+    if (dbError) {
+      throw new Error(`Failed to record embedding: ${dbError.message}`)
+    }
 
     console.log('Successfully processed message:', record.id)
 
@@ -81,7 +106,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error processing message:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { 
         status: 500,
         headers: { 'Content-Type': 'application/json' }
