@@ -42,6 +42,7 @@ export function MessageReactions({ messageId, className }: MessageReactionsProps
     }
   }, [isAuthenticated, messageId, toggleReaction])
 
+  // Don't render anything while loading initial data
   if (isLoading || groupedReactions.length === 0) return null
 
   return (
@@ -60,7 +61,8 @@ export function MessageReactions({ messageId, className }: MessageReactionsProps
                     'h-6 rounded-full px-2 text-xs transition-all duration-200',
                     hasReacted 
                       ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium dark:bg-blue-900/50 dark:hover:bg-blue-900/70 dark:text-blue-300' 
-                      : 'bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-gray-800/30 dark:hover:bg-gray-800/50 dark:text-gray-300'
+                      : 'bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-gray-800/30 dark:hover:bg-gray-800/50 dark:text-gray-300',
+                    isMutating && 'opacity-50 cursor-not-allowed'
                   )}
                   onClick={() => handleReactionClick(emoji)}
                   disabled={isMutating}
@@ -74,23 +76,9 @@ export function MessageReactions({ messageId, className }: MessageReactionsProps
                   )}>{users.length}</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent 
-                side="top" 
-                align="center"
-                sideOffset={8}
-                className="shadow-sm"
-              >
-                <div className="text-sm select-none whitespace-nowrap">
-                  {users.map((user, i) => (
-                    <span key={user.id}>
-                      {i > 0 && ', '}
-                      <span className={cn(
-                        user.id === session?.user?.id && 'font-medium text-blue-600 dark:text-blue-400'
-                      )}>
-                        {user.id === session?.user?.id ? 'You' : user.full_name}
-                      </span>
-                    </span>
-                  ))}
+              <TooltipContent>
+                <div className="text-sm">
+                  {users.map(user => user.full_name || user.username).join(', ')}
                 </div>
               </TooltipContent>
             </Tooltip>

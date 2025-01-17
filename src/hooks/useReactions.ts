@@ -8,7 +8,7 @@ export const useReactions = (messageId: string) => {
   const queryClient = useQueryClient()
 
   // Fetch reactions for a message
-  const { data: reactions, isLoading, error } = useQuery<ReactionWithUser[]>({
+  const { data: reactions = [], isLoading, error } = useQuery<ReactionWithUser[]>({
     queryKey: ['reactions', messageId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -22,7 +22,12 @@ export const useReactions = (messageId: string) => {
 
       if (error) throw error
       return data as ReactionWithUser[]
-    }
+    },
+    // Add these options to help with loading states
+    initialData: [],
+    staleTime: 1000,
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    retry: false
   })
 
   // Set up real-time subscription
@@ -39,62 +44,23 @@ export const useReactions = (messageId: string) => {
           table: 'reactions',
           filter: `message_id=eq.${messageId}`
         },
-        async (payload) => {
-          console.log('Reaction event received:', {
-            eventType: payload.eventType,
-            old: payload.old,
-            new: payload.new,
-            table: payload.table,
-            schema: payload.schema,
-            commit_timestamp: payload.commit_timestamp
-          })
-          
-          try {
-            await refreshReactions()
-            console.log('Successfully refreshed reactions after event')
-          } catch (error) {
-            console.error('Error refreshing reactions after event:', error)
-          }
+        async () => {
+          // Invalidate the query instead of trying to update cache directly
+          queryClient.invalidateQueries({ queryKey: ['reactions', messageId] })
         }
       )
       .subscribe((status) => {
-        console.log(`Subscription status for reactions:${messageId}:`, status)
+        console.log(`Reaction subscription status for message ${messageId}:`, status)
       })
 
     return () => {
       console.log(`Cleaning up reaction subscription for message ${messageId}`)
-      supabase.removeChannel(channel)
+      channel.unsubscribe()
     }
-  }, [messageId, supabase, queryClient])
+  }, [messageId, queryClient, supabase])
 
-  // Helper function to refresh reactions
-  const refreshReactions = async () => {
-    console.log('Refreshing reactions for message:', messageId)
-    const { data, error } = await supabase
-      .from('reactions')
-      .select(`
-        *,
-        user:users(id, full_name, username)
-      `)
-      .eq('message_id', messageId)
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Error refreshing reactions:', error)
-      throw error
-    }
-
-    console.log('Current reactions state:', {
-      messageId,
-      reactionCount: data?.length || 0,
-      reactions: data
-    })
-
-    queryClient.setQueryData(['reactions', messageId], data)
-  }
-
-  // Group reactions by emoji for easier rendering
-  const groupedReactions = reactions?.reduce((acc, reaction) => {
+  // Group reactions by emoji
+  const groupedReactions = reactions.reduce((acc: Array<{ emoji: string, users: ReactionWithUser['user'][] }>, reaction: ReactionWithUser) => {
     const existing = acc.find(g => g.emoji === reaction.emoji)
     if (existing) {
       existing.users.push(reaction.user)
@@ -105,10 +71,9 @@ export const useReactions = (messageId: string) => {
       })
     }
     return acc
-  }, [] as { emoji: string; users: ReactionWithUser['user'][] }[]) ?? []
+  }, [])
 
   return {
-    reactions,
     groupedReactions,
     isLoading,
     error

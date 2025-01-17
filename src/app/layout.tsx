@@ -6,7 +6,7 @@ import SupabaseProvider from '@/components/providers/SupabaseProvider'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { Database } from '@/types/supabase'
-import { Providers } from './providers'
+import Providers from './providers'
 
 const inter = Inter({ subsets: ['latin'] })
 
