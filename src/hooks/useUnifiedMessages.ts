@@ -158,39 +158,28 @@ export function useUnifiedMessages(context: MessageContext) {
           filter: context.type === 'thread'
             ? `parent_message_id=eq.${context.id}`
             : context.type === 'channel'
-            ? `channel_id=eq.${context.id} and parent_message_id=is.null and conversation_id=is.null`
-            : `conversation_id=eq.${context.id} and parent_message_id=is.null and channel_id=is.null`
+            ? `channel_id=eq.${context.id}`
+            : `conversation_id=eq.${context.id}`
         },
-        async (payload: RealtimePostgresChangesPayload<MessagePayload>) => {
-          const newMessage = payload.new as MessagePayload | null
+        async (payload) => {
           console.log('[useUnifiedMessages] Change received:', {
             eventType: payload.eventType,
             table: payload.table,
             schema: payload.schema,
-            new: newMessage,
+            new: payload.new,
             contextType: context.type,
             contextId: context.id,
-            isDM: context.type === 'dm',
-            matchesContext: newMessage && context.type === 'dm' ? 
-              newMessage.conversation_id === context.id :
-              context.type === 'channel' ? 
-                newMessage?.channel_id === context.id :
-                newMessage?.parent_message_id === context.id,
             timestamp: new Date().toISOString()
           })
 
           if (payload.eventType === 'INSERT') {
-            if (!newMessage) return
-
             // For channels, skip DM messages
-            if (context.type === 'channel' && newMessage.conversation_id !== null) {
-              console.log('[useUnifiedMessages] Skipping DM message in channel')
+            if (context.type === 'channel' && payload.new.conversation_id !== null) {
               return
             }
 
             // For DMs, skip channel messages
-            if (context.type === 'dm' && newMessage.channel_id !== null) {
-              console.log('[useUnifiedMessages] Skipping channel message in DM')
+            if (context.type === 'dm' && payload.new.channel_id !== null) {
               return
             }
 
@@ -198,13 +187,13 @@ export function useUnifiedMessages(context: MessageContext) {
             const { data: messageData, error: fetchError } = await supabase
               .from('messages')
               .select(MESSAGE_SELECT)
-              .eq('id', newMessage.id)
+              .eq('id', payload.new.id)
               .single()
 
             if (fetchError) {
               console.error('[useUnifiedMessages] Error fetching complete message:', {
                 error: fetchError,
-                messageId: newMessage.id,
+                messageId: payload.new.id,
                 timestamp: new Date().toISOString()
               })
               return
@@ -212,58 +201,47 @@ export function useUnifiedMessages(context: MessageContext) {
 
             if (!messageData) {
               console.error('[useUnifiedMessages] No message data found:', {
-                messageId: newMessage.id,
+                messageId: payload.new.id,
                 timestamp: new Date().toISOString()
               })
               return
             }
+
+            console.log('[useUnifiedMessages] Raw message data:', {
+              messageData,
+              messageId: payload.new.id,
+              timestamp: new Date().toISOString()
+            })
 
             const transformedMessage = DataTransformer.toMessage(messageData as unknown as DbJoinedMessage)
             if (!transformedMessage) {
               console.error('[useUnifiedMessages] Failed to transform message:', {
                 messageData,
-                messageId: newMessage.id,
+                messageId: payload.new.id,
                 timestamp: new Date().toISOString()
               })
               return
             }
 
-            // If this is a thread reply...
-            if (newMessage.parent_message_id) {
-              // If we're in the parent thread view, add the reply
-              if (context.type === 'thread' && context.id === newMessage.parent_message_id) {
-                setMessages(prev => {
-                  const exists = prev.some(msg => msg.id === transformedMessage.id)
-                  if (exists) return prev
-                  return [...prev, transformedMessage]
-                })
-              }
-              
-              // If we're in a channel/DM view, update the parent message
-              if (context.type !== 'thread') {
-                const { data: parentMessage, error: parentError } = await supabase
-                  .from('messages')
-                  .select(MESSAGE_SELECT)
-                  .eq('id', newMessage.parent_message_id)
-                  .single()
+            console.log('[useUnifiedMessages] Transformed message:', {
+              message: transformedMessage,
+              messageId: payload.new.id,
+              timestamp: new Date().toISOString()
+            })
 
-                if (!parentError && parentMessage) {
-                  const transformedParent = DataTransformer.toMessage(parentMessage as unknown as DbJoinedMessage)
-                  if (transformedParent) {
-                    setMessages(prev => prev.map(msg => 
-                      msg.id === transformedParent.id ? transformedParent : msg
-                    ))
-                  }
-                }
-              }
-              return
-            }
-
-            // For non-thread messages, just add them to the list
             setMessages(prev => {
+              // Check if message already exists
               const exists = prev.some(msg => msg.id === transformedMessage.id)
               if (exists) return prev
-              return [...prev, transformedMessage]
+
+              console.log('[useUnifiedMessages] Updating messages state:', {
+                prevCount: prev.length,
+                newId: transformedMessage.id,
+                timestamp: new Date().toISOString()
+              })
+
+              const newMessages = [...prev, transformedMessage]
+              return newMessages
             })
           }
         }
@@ -519,15 +497,6 @@ export function useUnifiedMessages(context: MessageContext) {
     })
   }, [messages, context.type, context.id])
 
-  const jumpToMessage = useCallback((messageId: string, container: HTMLElement | null) => {
-    if (!container) return
-    
-    const messageElement = container.querySelector(`[data-message-id="${messageId}"]`)
-    if (messageElement) {
-      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [])
-
   return {
     messages,
     isLoading,
@@ -539,7 +508,6 @@ export function useUnifiedMessages(context: MessageContext) {
     loadMore: undefined, // Will be implemented later
     checkIsAtBottom,
     scrollToBottom,
-    handleMessagesChange,
-    jumpToMessage
+    handleMessagesChange
   }
 } 

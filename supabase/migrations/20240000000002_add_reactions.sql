@@ -49,7 +49,7 @@ BEGIN
     CREATE PUBLICATION supabase_realtime;
   END IF;
 
-  -- Add table to publication if not already a member
+  -- Add reactions table to publication if not already a member
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables 
     WHERE pubname = 'supabase_realtime' 
@@ -57,5 +57,15 @@ BEGIN
     AND tablename = 'reactions'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE reactions;
+  END IF;
+
+  -- Add messages table to publication if not already a member
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE messages;
   END IF;
 END$$; 
